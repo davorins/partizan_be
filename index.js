@@ -1,0 +1,320 @@
+// index.js (or your main server file)
+const dotenv = require('dotenv');
+dotenv.config({ path: './.env' });
+
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const Player = require('./models/Player');
+const Parent = require('./models/Parent');
+const PlayerRegistration = require('./models/PlayerRegistration');
+const TournamentConfig = require('./models/TournamentConfig');
+const authRoutes = require('./routes/authRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const searchRoutes = require('./routes/searchRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const refundRoutes = require('./routes/refundRoutes');
+const unpaidRoutes = require('./routes/unpaidRoutes');
+const paymentProcessRoutes = require('./routes/paymentProcessRoutes');
+const squareWebhooksRouter = require('./routes/squareWebhooks');
+const { authenticate, isAdmin, isCoach, isUser } = require('./utils/auth');
+const path = require('path');
+const uploadRoutes = require('./routes/upload');
+const emailTemplateRoutes = require('./routes/emailTemplates');
+const emailCampaignRoutes = require('./routes/emailCampaignRoutes');
+const eventRoutes = require('./routes/eventRoutes');
+const faqRoutes = require('./routes/faqRoutes');
+const teamRoutes = require('./routes/teamRoutes');
+const adminDashboardRoutes = require('./routes/adminDashboard');
+const spotlightRoutes = require('./routes/spotlightRoutes');
+const schoolRoutes = require('./routes/schoolRoutes');
+const registrationRoutes = require('./routes/registrationRoutes');
+const formPublicRoutes = require('./routes/formPublic');
+const formBuilderRoutes = require('./routes/formBuilder');
+const formPaymentRoutes = require('./routes/form-payments');
+const formRoutes = require('./routes/formRoutes');
+const ticketRoutes = require('./routes/tickets');
+const adminTicketRoutes = require('./routes/ticketRoutes');
+const tournamentPublicRoutes = require('./routes/publicTournamentRoutes');
+const tournamentRoutes = require('./routes/tournamentRoutes');
+const teamsRoutes = require('./routes/teams');
+const communicationPreferencesRouter = require('./routes/communicationPreferences');
+const pageBuilder = require('./routes/pageBuilderRoutes');
+
+const app = express();
+const PORT = process.env.PORT || 5001;
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://bothellselect.com',
+      'https://www.bothellselect.com',
+      'https://bothellselect.vercel.app',
+      // Add localhost with different ports Safari might use
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+    ];
+
+    if (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      process.env.NODE_ENV !== 'production'
+    ) {
+      callback(null, true);
+    } else {
+      console.error('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+  ],
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type',
+    'Authorization',
+    'Access-Control-Allow-Origin',
+  ],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400, // 24 hours
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+app.use(
+  '/api/square/webhook',
+  express.raw({ type: 'application/json' }),
+  squareWebhooksRouter
+);
+
+app.use(express.json());
+
+// Use routes
+app.use('/api', authRoutes);
+app.use('/api', notificationRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/payments', unpaidRoutes);
+app.use('/api/payments', paymentProcessRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/upload', uploadRoutes);
+app.use('/api/email-templates', emailTemplateRoutes);
+app.use('/api/email', emailCampaignRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/faqs', faqRoutes);
+app.use('/api', teamRoutes);
+app.use('/api/admin', adminDashboardRoutes);
+app.use('/api/spotlight', spotlightRoutes);
+app.use('/api/schools', schoolRoutes);
+app.use('/api/admin', registrationRoutes);
+app.use('/api/forms', formPublicRoutes);
+app.use('/api/forms', formBuilderRoutes);
+app.use('/api/forms', formRoutes);
+app.use('/api/communication-preferences', communicationPreferencesRouter);
+app.use(
+  '/uploads/forms',
+  express.static(path.join(__dirname, 'uploads/forms'))
+);
+app.use('/api/forms/process-payment', formPaymentRoutes);
+app.use('/api/tickets', ticketRoutes);
+app.use('/api/admin', adminTicketRoutes);
+app.use('/api', tournamentPublicRoutes);
+app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/teams', teamsRoutes);
+app.use('/api/page-builder', pageBuilder);
+
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => {
+    console.error('Failed to connect to MongoDB:', err.message);
+    process.exit(1);
+  });
+
+// Backend route for fetching player data
+app.get('/api/player/:playerId', async (req, res) => {
+  try {
+    const playerId = req.params.playerId;
+    const player = await Player.findById(playerId).select('+parentId');
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    res.json(player);
+  } catch (error) {
+    console.error('Error fetching player:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Protected routes
+app.get('/api/admin-dashboard', authenticate, isAdmin, (req, res) => {
+  res.json({ message: 'Welcome to the Admin Dashboard' });
+});
+
+app.get('/api/coach-dashboard', authenticate, isCoach, (req, res) => {
+  res.json({ message: 'Welcome to the Coach Dashboard' });
+});
+
+app.get('/api/user-dashboard', authenticate, isUser, (req, res) => {
+  res.json({ message: 'Welcome to the User Dashboard' });
+});
+
+// Fetch all registrations for a player
+app.get(
+  '/api/players/:playerId/all-registrations',
+  authenticate,
+  async (req, res) => {
+    const { playerId } = req.params;
+    try {
+      const registrations = await PlayerRegistration.find({ playerId });
+      res.status(200).json(registrations);
+    } catch (error) {
+      console.error('Error fetching registrations:', error);
+      res.status(500).json({ error: 'Failed to fetch registrations' });
+    }
+  }
+);
+
+// Create or update player
+app.post('/api/players', authenticate, async (req, res) => {
+  try {
+    const {
+      fullName,
+      gender,
+      dob,
+      schoolName,
+      grade,
+      healthConcerns,
+      aauNumber,
+      registrationYear,
+      season,
+      parentId,
+    } = req.body;
+
+    // Validate required fields
+    if (!fullName || !gender || !dob || !parentId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const newPlayer = new Player({
+      fullName,
+      gender,
+      dob,
+      schoolName,
+      grade,
+      healthConcerns,
+      aauNumber,
+      registrationYear,
+      season,
+      parentId,
+    });
+
+    await newPlayer.save();
+
+    // Update the parent's players array
+    await Parent.findByIdAndUpdate(
+      parentId,
+      { $push: { players: newPlayer._id } },
+      { new: true }
+    );
+
+    res.status(201).json(newPlayer);
+  } catch (error) {
+    console.error('Error creating player:', error);
+    res.status(500).json({ error: 'Failed to create player' });
+  }
+});
+
+// Update player details
+app.put('/api/players/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validate the ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid player ID format' });
+    }
+
+    const updatedPlayer = await Player.findByIdAndUpdate(id, updateData, {
+      new: true, // Return the updated document
+      runValidators: true, // Run schema validators on update
+    });
+
+    if (!updatedPlayer) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    res.json(updatedPlayer);
+  } catch (error) {
+    console.error('Update error:', error);
+    res.status(500).json({
+      error: 'Failed to update player',
+      details: error.message,
+    });
+  }
+});
+
+// Check if the email is already registered
+app.post('/api/check-email', async (req, res) => {
+  const { email } = req.body;
+
+  const user = await Parent.findOne({ email });
+
+  if (user) {
+    return res.status(409).json({ message: 'Email is already registered' });
+  }
+  res.status(200).json({ message: 'Email is available' });
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Endpoint not found',
+    requestedUrl: req.originalUrl,
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something broke!' });
+});
+
+// Start the server
+const startServer = (port) => {
+  const server = app.listen(port, () =>
+    console.log(`Server running on port ${port}`)
+  );
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is already in use. Trying a different port...`);
+      startServer(port + 1); // Try the next port
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+};
+
+startServer(PORT);
