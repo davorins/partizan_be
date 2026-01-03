@@ -173,7 +173,7 @@ async function sendEmail({
     }
 
     const { data, error } = await resend.emails.send({
-      from: 'Partizan <bcpartizan@proton.me>',
+      from: 'Partizan <info@partizanhoops.com>',
       to,
       subject,
       html: finalHtml,
