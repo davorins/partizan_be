@@ -414,7 +414,7 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
             <tr>
               <td style="padding: 30px 30px 0;">
                 <div style="text-align: left; border-bottom: 1px solid #eaeaea; padding-bottom: 20px;">
-                  <img src="https://res.cloudinary.com/dlmdnn3dk/image/upload/v1749172582/w9cliwdttnm1gm9ozlpw.png" alt="Partizan Logo" height="30" style="display: block; margin: 0; height: 30px;" />
+                  <img src="https://res.cloudinary.com/dlmdnn3dk/image/upload/v1749172582/nldqvryhacnunvyi9i8a.png" alt="Partizan Logo" height="30" style="display: block; margin: 0; height: 30px;" />
                 </div>
               </td>
             </tr>
