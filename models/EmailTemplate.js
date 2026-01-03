@@ -310,6 +310,97 @@ const addEmailStyles = (html) => {
   return styledHtml;
 };
 
+// Get file icon based on MIME type
+emailTemplateSchema.methods.getFileIcon = function (mimeType) {
+  if (mimeType.startsWith('image/')) return '🖼️';
+  if (mimeType === 'application/pdf') return '📄';
+  if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet'))
+    return '📊';
+  if (mimeType === 'text/plain') return '📃';
+  if (mimeType.includes('zip') || mimeType.includes('rar')) return '📦';
+  return '📎';
+};
+
+// Format file size
+emailTemplateSchema.methods.formatFileSize = function (bytes) {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// Generate attachments HTML section
+emailTemplateSchema.methods.generateAttachmentsHTML = function () {
+  if (!this.attachments || this.attachments.length === 0) {
+    return '';
+  }
+
+  console.log(
+    '📎 Generating attachments HTML for',
+    this.attachments.length,
+    'attachment(s)'
+  );
+
+  const attachmentItems = this.attachments
+    .map((attachment) => {
+      if (!attachment || !attachment.filename) return '';
+
+      const fileSize = this.formatFileSize(attachment.size);
+      const fileIcon = this.getFileIcon(attachment.mimeType);
+      const fileType = attachment.mimeType || 'File';
+
+      return `
+      <div style="margin: 12px 0; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #594230;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 24px; line-height: 1;">${fileIcon}</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${attachment.filename}</div>
+            <div style="font-size: 12px; color: #666;">
+              ${fileSize} • ${fileType}
+            </div>
+          </div>
+        </div>
+        ${
+          attachment.url
+            ? `
+          <div style="margin-top: 8px; font-size: 13px;">
+            <a href="${attachment.url}" 
+               style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;"
+               target="_blank">
+              🔗 Direct download link
+            </a>
+          </div>
+        `
+            : ''
+        }
+      </div>
+    `;
+    })
+    .filter((item) => item !== '')
+    .join('');
+
+  if (!attachmentItems) return '';
+
+  return `
+    <div style="margin-top: 30px; padding-top: 25px; border-top: 2px solid #eaeaea;">
+      <h3 style="color: #333; margin-bottom: 20px; font-size: 18px;">
+        📎 Attachments (${this.attachments.length})
+      </h3>
+      <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+        ${attachmentItems}
+      </div>
+      <div style="font-size: 13px; color: #666; background: #fff9e6; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;">
+        <p style="margin: 0;">
+          <strong>Note:</strong> These files are also attached to this email. 
+          If you don't see them as attachments, you can download them using the links above.
+        </p>
+      </div>
+    </div>
+  `;
+};
+
 // Helper method to generate signature HTML
 emailTemplateSchema.methods.generateSignatureHTML = function () {
   if (!this.includeSignature || !this.signatureConfig) {
@@ -357,6 +448,11 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
   const bodyContent = extractBodyContent(this.content);
 
   let styledContent = addEmailStyles(bodyContent);
+
+  // ✅ ADD ATTACHMENTS
+  if (this.attachments && this.attachments.length > 0) {
+    styledContent += this.generateAttachmentsHTML();
+  }
 
   // Add signature if enabled
   if (this.includeSignature) {
@@ -459,7 +555,8 @@ emailTemplateSchema.pre('save', function (next) {
   if (
     this.isModified('content') ||
     this.isModified('includeSignature') ||
-    this.isModified('signatureConfig')
+    this.isModified('signatureConfig') ||
+    this.isModified('attachments')
   ) {
     this.completeContent = this.getCompleteEmailHTML();
 

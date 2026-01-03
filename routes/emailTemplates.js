@@ -247,6 +247,14 @@ router.post(
         });
       }
 
+      console.log('📁 Uploaded file details:', {
+        originalName: req.file.originalname,
+        cloudinaryUrl: req.file.path,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        cloudinaryPublicId: req.file.filename,
+      });
+
       const fileInfo = getFileInfo(req.file);
 
       // Add file info to template's attachments array
@@ -261,6 +269,7 @@ router.post(
         },
       });
     } catch (error) {
+      console.error('Upload error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   }

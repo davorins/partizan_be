@@ -126,7 +126,6 @@ async function sendEmail({
 
     let finalHtml = html;
 
-    // Only replace template variables if html contains template markers
     if (
       html.includes('[parent.') ||
       html.includes('[player.') ||
@@ -141,55 +140,186 @@ async function sendEmail({
       });
     }
 
-    // Prepare attachments for Resend API
     const resendAttachments = [];
 
     if (attachments && attachments.length > 0) {
-      for (const attachment of attachments) {
-        // If attachment has a URL, read the file from disk
-        if (attachment.url && attachment.url.startsWith('/uploads/')) {
-          const filePath = path.join(__dirname, '..', attachment.url);
+      console.log(`📎 Processing ${attachments.length} attachment(s)`);
 
-          if (fs.existsSync(filePath)) {
-            const fileContent = fs.readFileSync(filePath);
-
-            resendAttachments.push({
-              filename: attachment.filename,
-              content: fileContent,
-              // You can add content type based on mimeType if needed
-            });
-          } else {
-            console.warn(`Attachment file not found: ${filePath}`);
-          }
-        }
-        // If attachment has base64 content (from frontend)
-        else if (attachment.content) {
-          resendAttachments.push({
+      for (const [index, attachment] of attachments.entries()) {
+        try {
+          console.log(`Attachment ${index + 1}:`, {
             filename: attachment.filename,
-            content: Buffer.from(attachment.content, 'base64'),
+            url: attachment.url,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
           });
+
+          // ✅ Handle Cloudinary URLs
+          if (attachment.url && attachment.url.includes('cloudinary.com')) {
+            try {
+              console.log(
+                `Downloading from Cloudinary: ${attachment.filename}`
+              );
+
+              // Construct the correct Cloudinary download URL
+              let downloadUrl = attachment.url;
+
+              // For raw files (non-images), use /raw/upload/ format
+              if (
+                attachment.mimeType &&
+                !attachment.mimeType.startsWith('image/')
+              ) {
+                if (downloadUrl.includes('/image/upload/')) {
+                  downloadUrl = downloadUrl.replace(
+                    '/image/upload/',
+                    '/raw/upload/'
+                  );
+                }
+                // Add force download flag
+                if (!downloadUrl.includes('fl_attachment')) {
+                  downloadUrl += '?fl_attachment';
+                }
+              } else {
+                // For images, ensure proper format
+                if (!downloadUrl.includes('/image/upload/')) {
+                  const publicId = attachment.publicId || attachment.filename;
+                  downloadUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${publicId}`;
+                }
+              }
+
+              console.log(`Download URL: ${downloadUrl}`);
+
+              // Download file from Cloudinary
+              const response = await fetch(downloadUrl, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (compatible; PartizanApp/1.0)',
+                },
+              });
+
+              if (!response.ok) {
+                console.warn(
+                  `Failed to download from Cloudinary: ${response.status} ${response.statusText}`
+                );
+                // Try alternative URL format
+                const altUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${attachment.filename}`;
+                console.log(`Trying alternative URL: ${altUrl}`);
+                const altResponse = await fetch(altUrl);
+
+                if (!altResponse.ok) {
+                  console.warn(`Alternative URL also failed`);
+                  continue;
+                }
+
+                const buffer = await altResponse.arrayBuffer();
+                resendAttachments.push({
+                  filename: attachment.filename,
+                  content: Buffer.from(buffer),
+                  contentType:
+                    attachment.mimeType || getMimeType(attachment.filename),
+                });
+              } else {
+                const buffer = await response.arrayBuffer();
+                resendAttachments.push({
+                  filename: attachment.filename,
+                  content: Buffer.from(buffer),
+                  contentType:
+                    attachment.mimeType || getMimeType(attachment.filename),
+                });
+              }
+
+              console.log(
+                `✅ Cloudinary attachment ready: ${attachment.filename}`
+              );
+            } catch (fetchError) {
+              console.error(
+                `❌ Failed to download Cloudinary attachment ${attachment.filename}:`,
+                fetchError.message
+              );
+
+              // Fallback: Use the URL directly (Resend might be able to fetch it)
+              resendAttachments.push({
+                filename: attachment.filename,
+                url: attachment.url, // Let Resend handle the download
+                contentType:
+                  attachment.mimeType || getMimeType(attachment.filename),
+              });
+            }
+          }
+          // ... handle other attachment types ...
+        } catch (err) {
+          console.error(
+            `Error processing attachment ${attachment.filename}:`,
+            err
+          );
         }
       }
     }
 
-    const { data, error } = await resend.emails.send({
+    console.log(
+      `📧 Sending email to ${to} with ${resendAttachments.length} attachment(s)`
+    );
+
+    const emailData = {
       from: 'Partizan <info@partizanhoops.com>',
+      reply_to: 'bcpartizan@proton.me',
       to,
       subject,
       html: finalHtml,
-      attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
-    });
+    };
+
+    // Add attachments if we have any
+    if (resendAttachments.length > 0) {
+      emailData.attachments = resendAttachments;
+      console.log(
+        'Attachments to send:',
+        resendAttachments.map((a) => ({
+          filename: a.filename,
+          contentType: a.contentType,
+          hasContent: !!a.content,
+          hasUrl: !!a.url,
+        }))
+      );
+    }
+
+    const { data, error } = await resend.emails.send(emailData);
 
     if (error) {
-      console.error('Email error:', error);
+      console.error('❌ Resend API error:', error);
       throw error;
     }
 
+    console.log(`✅ Email sent successfully!`, {
+      to,
+      subject,
+      attachmentCount: resendAttachments.length,
+      emailId: data.id,
+    });
+
     return data;
   } catch (err) {
-    console.error('Email sending failed:', err);
+    console.error('❌ Email sending failed:', err);
     throw err;
   }
+}
+
+// Helper function to get MIME type from filename
+function getMimeType(filename) {
+  const extension = filename.split('.').pop().toLowerCase();
+  const mimeTypes = {
+    pdf: 'application/pdf',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    txt: 'text/plain',
+    zip: 'application/zip',
+    rar: 'application/x-rar-compressed',
+  };
+  return mimeTypes[extension] || 'application/octet-stream';
 }
 
 // ============ SEND EMAIL WITH TEMPLATE AND ATTACHMENTS ============
@@ -234,14 +364,27 @@ async function sendTemplateEmail({
     // Get complete HTML with signature if needed
     const completeHTML = template.getCompleteEmailHTML();
 
+    // DEBUG: Check what attachments are available
+    console.log('Template attachments:', {
+      count: template.attachments?.length || 0,
+      attachments: template.attachments?.map((a) => ({
+        filename: a.filename,
+        url: a.url,
+        size: a.size,
+        mimeType: a.mimeType,
+      })),
+    });
+
     // Combine template attachments with additional attachments
     const allAttachments = [
       ...(template.attachments || []),
       ...additionalAttachments,
     ];
 
+    console.log('All attachments to send:', allAttachments.length);
+
     // Send the email
-    return await sendEmail({
+    const result = await sendEmail({
       to,
       subject,
       html: completeHTML,
@@ -252,6 +395,15 @@ async function sendTemplateEmail({
       emailType,
       attachments: allAttachments,
     });
+
+    console.log('Template email sent with attachments:', {
+      templateId,
+      to,
+      attachmentCount: allAttachments.length,
+      result: result,
+    });
+
+    return result;
   } catch (err) {
     console.error('Error in sendTemplateEmail:', {
       error: err.message,
