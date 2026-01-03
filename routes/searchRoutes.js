@@ -8,13 +8,13 @@ const mongoose = require('mongoose');
 
 // Default avatar URLs
 const DEFAULT_PARENT_AVATAR =
-  'https://bothell-select.onrender.com/uploads/avatars/parents.png';
+  'https://partizan-be.onrender.com/uploads/avatars/parents.png';
 const DEFAULT_COACH_AVATAR =
-  'https://bothell-select.onrender.com/uploads/avatars/coach.png';
+  'https://partizan-be.onrender.com/uploads/avatars/coach.png';
 const DEFAULT_GIRL_AVATAR =
-  'https://bothell-select.onrender.com/uploads/avatars/girl.png';
+  'https://partizan-be.onrender.com/uploads/avatars/girl.png';
 const DEFAULT_BOY_AVATAR =
-  'https://bothell-select.onrender.com/uploads/avatars/boy.png';
+  'https://partizan-be.onrender.com/uploads/avatars/boy.png';
 
 // Helper function to get player avatar URL
 const getPlayerAvatar = (player) => {
@@ -25,7 +25,7 @@ const getPlayerAvatar = (player) => {
       return player.avatar;
     }
     if (player.avatar.startsWith('/uploads/avatars/')) {
-      return `https://bothell-select.onrender.com${player.avatar}`;
+      return `https://partizan-be.onrender.com${player.avatar}`;
     }
     return player.avatar;
   }
