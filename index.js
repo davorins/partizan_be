@@ -55,7 +55,7 @@ const corsOptions = {
       'http://localhost:3001',
       'https://partizanhoops.com',
       'https://www.partizanhoops.com',
-      'https://bothellselect.vercel.app',
+      'partizan-tau.vercel.app',
       // Add localhost with different ports Safari might use
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
