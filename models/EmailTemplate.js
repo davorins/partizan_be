@@ -59,7 +59,7 @@ const emailTemplateSchema = new mongoose.Schema(
       website: {
         type: String,
         trim: true,
-        default: 'https://bothellselect.com',
+        default: 'https://partizanhoops.com',
       },
       additionalInfo: {
         type: String,
@@ -322,7 +322,7 @@ emailTemplateSchema.methods.generateSignatureHTML = function () {
     fullName = '',
     phone = '',
     email = '',
-    website = 'https://bothellselect.com',
+    website = 'https://partizanhoops.com',
     additionalInfo = '',
   } = this.signatureConfig;
 
@@ -430,9 +430,9 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
                 <div style="text-align: center; font-size: 13px; color: #666; padding: 30px 0 20px; margin-top: 40px; border-top: 1px solid #eaeaea;">
                   <p style="margin: 0 0 8px;"> you're part of <strong style="color: #333;">Partizan</strong>.</p>
                   <p style="margin: 0;">
-                    <a href="https://bothellselect.com/unsubscribe" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Unsubscribe</a> • 
-                    <a href="https://bothellselect.com/contact" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Contact Us</a> • 
-                    <a href="https://bothellselect.com" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Website</a>
+                    <a href="https://partizanhoops.com/unsubscribe" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Unsubscribe</a> • 
+                    <a href="https://partizanhoops.com/contact" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Contact Us</a> • 
+                    <a href="https://partizanhoops.com" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Website</a>
                   </p>
                 </div>
               </td>

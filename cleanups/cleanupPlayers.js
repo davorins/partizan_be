@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 // 🔧 Replace this with your MongoDB Atlas connection string
 const uri =
-  'mongodb+srv://bothellselect:nrMNUpNv7Zavgfak@bothellselect.9wh96.mongodb.net/bothellselect?retryWrites=true&w=majority&appName=bothellselect';
+  'mongodb+srv://partizan:7ykGhss7VGk78ozy@cluster0.2uaqsib.mongodb.net/?appName=Cluster0';
 
 async function cleanPlayers() {
   try {

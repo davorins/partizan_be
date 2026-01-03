@@ -238,7 +238,7 @@ router.get('/pending', authenticate, async (req, res) => {
 
 // Email notification functions
 async function sendRefundNotification(payment, refundRequest, user) {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@bothellselect.com';
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@partizanhoops.com';
 
   await sendEmail({
     to: adminEmail,

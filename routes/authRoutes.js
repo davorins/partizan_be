@@ -283,7 +283,7 @@ router.post(
         const welcomeEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
+              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
             </div>
             
             <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
@@ -311,7 +311,7 @@ router.post(
                 </ul>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard" 
+                  <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard" 
                      style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                     Go to Your Dashboard
                   </a>

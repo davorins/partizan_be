@@ -32,7 +32,7 @@ const sendEmailNotification = async (emails, message) => {
     `;
 
     const { data, error } = await resend.emails.send({
-      from: 'Partizan <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: emails,
       subject: 'New Notification from Partizan',
       html: emailHtml,

@@ -278,7 +278,7 @@ async function sendWelcomeEmail(parentId, playerId) {
         content: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
             </div>
             
             <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -397,7 +397,7 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -515,7 +515,7 @@ async function sendTournamentRegistrationEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -777,7 +777,7 @@ async function sendResetEmail(email, resetToken) {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Partizan <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: email,
       subject: 'Password Reset Request',
       html,
@@ -835,7 +835,7 @@ async function sendTrainingRegistrationPendingEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -954,7 +954,7 @@ async function sendRegistrationPendingEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -1234,7 +1234,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
         
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -1301,7 +1301,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
 
     // Send the email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Partizan <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: userEmail,
       subject: `Payment Receipt - ${formTitle}`,
       html: emailHtml,
@@ -1460,7 +1460,7 @@ async function sendFormSubmissionConfirmationEmail(formData, submissionData) {
             
             <p style="margin-top: 20px;">
               <strong>Need to make changes?</strong><br>
-              If you need to update your submission or have any questions, please contact us at info@bothellselect.com
+              If you need to update your submission or have any questions, please contact us at info@partizanhoops.com
             </p>
             
             <p>Thank you,<br>The Partizan Team</p>
@@ -1472,7 +1472,7 @@ async function sendFormSubmissionConfirmationEmail(formData, submissionData) {
 
     // Send the email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Partizan <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: userEmail,
       subject: `Form Submission Confirmation - ${formTitle}`,
       html: emailHtml,
@@ -1669,7 +1669,7 @@ async function sendFormOwnerNotificationEmail({
     `;
 
     const { data, error } = await resend.emails.send({
-      from: 'Partizan <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to,
       subject: `New Payment: ${formTitle} - ${formattedAmount}`,
       html: notificationHtml,
