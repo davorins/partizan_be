@@ -52,7 +52,7 @@ async function updateEmailTemplateLinks() {
               )
             ) {
               fieldContent = fieldContent.replace(
-                /href="https:\/\/bothellselect\.com\/unsubscribe"/g,
+                /href="https:\/\/partizanhoops\.com\/unsubscribe"/g,
                 'href="https://partizanhoops.com/general-settings/notifications-settings"'
               );
               console.log(`   ↳ Updated unsubscribe link in ${field}`);
@@ -64,7 +64,7 @@ async function updateEmailTemplateLinks() {
               fieldContent.includes('href="https://partizanhoops.com/contact"')
             ) {
               fieldContent = fieldContent.replace(
-                /href="https:\/\/bothellselect\.com\/contact"/g,
+                /href="https:\/\/partizanhoops\.com\/contact"/g,
                 'href="https://partizanhoops.com/contact-us"'
               );
               console.log(`   ↳ Updated contact link in ${field}`);
@@ -76,7 +76,7 @@ async function updateEmailTemplateLinks() {
               fieldContent.includes('href="https://partizanhoops.com/website"')
             ) {
               fieldContent = fieldContent.replace(
-                /href="https:\/\/bothellselect\.com\/website"/g,
+                /href="https:\/\/partizanhoops\.com\/website"/g,
                 'href="https://partizanhoops.com"'
               );
               console.log(`   ↳ Updated website link in ${field}`);
@@ -91,7 +91,7 @@ async function updateEmailTemplateLinks() {
               )
             ) {
               fieldContent = fieldContent.replace(
-                /href=https:\/\/bothellselect\.com\/unsubscribe/g,
+                /href=https:\/\/partizanhoops\.com\/unsubscribe/g,
                 'href="https://partizanhoops.com/general-settings/notifications-settings"'
               );
               console.log(
@@ -104,7 +104,7 @@ async function updateEmailTemplateLinks() {
               fieldContent.includes('href=https://partizanhoops.com/contact')
             ) {
               fieldContent = fieldContent.replace(
-                /href=https:\/\/bothellselect\.com\/contact/g,
+                /href=https:\/\/partizanhoops\.com\/contact/g,
                 'href="https://partizanhoops.com/contact-us"'
               );
               console.log(`   ↳ Updated contact link (no quotes) in ${field}`);
