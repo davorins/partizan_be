@@ -1,7 +1,6 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 
 // Configure storage
 const storage = multer.diskStorage({
@@ -15,10 +14,16 @@ const storage = multer.diskStorage({
 
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = uuidv4();
-    const extension = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${uniqueSuffix}${extension}`);
+  filename: async (req, file, cb) => {
+    try {
+      // Dynamically import uuid
+      const { v4: uuidv4 } = await import('uuid');
+      const uniqueSuffix = uuidv4();
+      const extension = path.extname(file.originalname);
+      cb(null, `${Date.now()}-${uniqueSuffix}${extension}`);
+    } catch (error) {
+      cb(error, null);
+    }
   },
 });
 
