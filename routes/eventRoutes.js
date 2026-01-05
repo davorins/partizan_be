@@ -7,11 +7,36 @@ const Parent = require('../models/Parent');
 const { authenticate } = require('../utils/auth');
 const FormSubmission = require('../models/FormSubmission');
 const { submitPayment } = require('../services/square-payments');
+const mongoose = require('mongoose');
+const moment = require('moment');
+
+// Import the CalendarDateGenerator
+const CalendarDateGenerator = require('../utils/calendarDateGenerator');
 
 // Get all events
 router.get('/', async (req, res) => {
   try {
-    const events = await Event.find().populate('formId');
+    const { includeSystem = 'true', year } = req.query;
+    let query = {};
+
+    if (includeSystem === 'false') {
+      query.$or = [
+        { isPredefined: { $ne: true } },
+        { source: { $ne: 'system' } },
+      ];
+    }
+
+    // Filter by year if specified
+    if (year) {
+      const startDate = new Date(`${year}-01-01`);
+      const endDate = new Date(`${year}-12-31`);
+      query.start = { $gte: startDate, $lte: endDate };
+    }
+
+    const events = await Event.find(query)
+      .populate('formId')
+      .sort({ start: 1 });
+
     res.json(events);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -384,6 +409,106 @@ router.post('/payments/process', authenticate, async (req, res) => {
       success: false,
       error: error.message || 'Payment processing failed',
     });
+  }
+});
+
+// Populate system events
+router.post('/populate-system-events', authenticate, async (req, res) => {
+  try {
+    const generator = new CalendarDateGenerator(2026);
+    const importantDates = generator.getImportantDates();
+
+    const createdEvents = [];
+    const systemUserId = new mongoose.Types.ObjectId(
+      '000000000000000000000000'
+    );
+
+    // Check which events already exist
+    const existingEvents = await Event.find({
+      isPredefined: true,
+      source: 'system',
+      start: {
+        $gte: new Date('2026-01-01'),
+        $lte: new Date('2026-12-31'),
+      },
+    });
+
+    const existingTitles = existingEvents.map((e) => e.title);
+
+    // Create new events that don't exist yet
+    for (const dateEvent of importantDates) {
+      if (!existingTitles.includes(dateEvent.title)) {
+        const event = new Event({
+          title: dateEvent.title,
+          start: moment(dateEvent.date).toDate(),
+          end: dateEvent.endDate
+            ? moment(dateEvent.endDate).toDate()
+            : moment(dateEvent.date).add(1, 'day').toDate(),
+          category: dateEvent.category,
+          backgroundColor: dateEvent.backgroundColor,
+          isPredefined: true,
+          source: 'system',
+          recurrence: 'yearly',
+          originalDate: dateEvent.date,
+          createdBy: systemUserId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        const savedEvent = await event.save();
+        createdEvents.push(savedEvent);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `System events populated for 2026. Created ${createdEvents.length} new events.`,
+      events: createdEvents,
+    });
+  } catch (err) {
+    console.error('Error populating system events:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// Remove all system events
+router.delete('/system-events', authenticate, async (req, res) => {
+  try {
+    const result = await Event.deleteMany({
+      source: 'system',
+      isPredefined: true,
+    });
+
+    res.json({
+      success: true,
+      message: `Removed ${result.deletedCount} system events`,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// Get upcoming important dates
+router.get('/important-dates', async (req, res) => {
+  try {
+    const today = moment().startOf('day').toDate();
+    const nextMonth = moment().add(1, 'month').endOf('day').toDate();
+
+    const importantDates = await Event.find({
+      isPredefined: true,
+      source: 'system',
+      start: { $gte: today, $lte: nextMonth },
+    }).sort({ start: 1 });
+
+    res.json(importantDates);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

@@ -75,6 +75,25 @@ const eventSchema = new mongoose.Schema({
       default: 'USD',
     },
   },
+  allDay: {
+    type: Boolean,
+    default: false,
+  },
+  isPredefined: {
+    type: Boolean,
+    default: false,
+  },
+  source: {
+    type: String,
+    enum: ['user', 'system', 'imported'],
+    default: 'user',
+  },
+  recurrence: {
+    type: String,
+    enum: ['none', 'yearly', 'monthly', 'weekly'],
+    default: 'none',
+  },
+  originalDate: Date, // For recurring events
 });
 
 eventSchema.pre('save', function (next) {
@@ -82,13 +101,14 @@ eventSchema.pre('save', function (next) {
     this.price = parseFloat(this.price) || 0;
   }
 
-  if (this.isModified('category')) {
+  // Only auto-set background color for non-system events
+  if (!this.isPredefined && this.isModified('category')) {
     const colorMap = {
       training: '#1abe17',
       game: '#dc3545',
-      holidays: '#594230',
+      holidays: '#0f65cd',
       celebration: '#eab300',
-      camp: '#6c757d',
+      camp: '#ff00d2',
       tryout: '#0d6efd',
     };
 
