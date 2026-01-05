@@ -1,10 +1,24 @@
-// routes/refundRoutes.js
+// routes/refundRoutes.js - COMPLETE FIXED VERSION
 const express = require('express');
 const { authenticate } = require('../utils/auth');
 const Payment = require('../models/Payment');
-const { client } = require('../services/square-payments');
 const { sendEmail } = require('../utils/email');
 const router = express.Router();
+const crypto = require('crypto');
+
+// IMPORTANT: Initialize Square client directly here to avoid import issues
+const { Client, Environment } = require('square');
+
+// Create Square client for refund routes
+const squareClient = new Client({
+  accessToken: process.env.SQUARE_ACCESS_TOKEN,
+  environment:
+    process.env.NODE_ENV === 'production'
+      ? Environment.Production
+      : Environment.Sandbox,
+});
+
+const { refundsApi } = squareClient;
 
 // POST /api/refunds/request
 router.post('/request', authenticate, async (req, res) => {
@@ -12,23 +26,28 @@ router.post('/request', authenticate, async (req, res) => {
     const { paymentId, reason, amount, notes } = req.body;
     const requestedBy = req.user.id;
 
+    console.log('📋 Creating refund request:', { paymentId, amount, reason });
+
     // Find the payment
     const payment = await Payment.findById(paymentId);
     if (!payment) {
-      return res.status(404).json({ error: 'Payment not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Payment not found',
+      });
     }
 
     // Validate refund amount
-    const maxRefundable = payment.amount - payment.totalRefunded;
+    const maxRefundable = payment.amount - (payment.totalRefunded || 0);
     if (amount > maxRefundable) {
       return res.status(400).json({
-        error: `Refund amount exceeds available balance. Maximum refundable: $${maxRefundable}`,
+        success: false,
+        error: `Refund amount exceeds available balance. Maximum refundable: $${maxRefundable.toFixed(2)}`,
       });
     }
 
     // Create refund request
     const refundRequest = {
-      refundId: `refund_req_${Date.now()}`,
       amount,
       reason: reason || 'Customer request',
       status: 'pending',
@@ -37,9 +56,14 @@ router.post('/request', authenticate, async (req, res) => {
       notes,
     };
 
+    // Initialize refunds array if needed
+    if (!payment.refunds) {
+      payment.refunds = [];
+    }
+
     payment.refunds.push(refundRequest);
     payment.refundStatus =
-      payment.totalRefunded + amount >= payment.amount
+      (payment.totalRefunded || 0) + amount >= payment.amount
         ? 'requested'
         : 'partial';
 
@@ -51,82 +75,267 @@ router.post('/request', authenticate, async (req, res) => {
     res.json({
       success: true,
       message: 'Refund request submitted successfully',
-      refundRequest,
+      refundRequest: {
+        ...refundRequest,
+        _id: payment.refunds[payment.refunds.length - 1]._id, // Get the new refund ID
+      },
     });
   } catch (error) {
-    console.error('Refund request error:', error);
-    res.status(500).json({ error: 'Failed to submit refund request' });
+    console.error('❌ Refund request error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit refund request',
+      details:
+        process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
   }
 });
 
-// POST /api/refunds/process
+// POST /api/refunds/process - COMPLETE FIXED VERSION
 router.post('/process', authenticate, async (req, res) => {
+  console.log('🔄 /refunds/process endpoint called');
+
   try {
     const { paymentId, refundId, action, adminNotes } = req.body;
     const processedBy = req.user.id;
 
+    console.log('📋 Processing refund:', {
+      paymentId,
+      refundId,
+      action,
+      adminNotes,
+      processedBy,
+    });
+
     // Only admins can process refunds
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Unauthorized' });
+      console.error('❌ Unauthorized user:', req.user.role);
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized - Admin access required',
+      });
     }
 
+    // Validate required fields
+    if (!paymentId || !refundId || !action) {
+      console.error('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        error:
+          'Missing required fields: paymentId, refundId, and action are required',
+      });
+    }
+
+    // Find the payment
+    console.log('🔍 Looking for payment:', paymentId);
     const payment = await Payment.findById(paymentId);
+
     if (!payment) {
-      return res.status(404).json({ error: 'Payment not found' });
+      console.error('❌ Payment not found');
+      return res.status(404).json({
+        success: false,
+        error: 'Payment not found',
+      });
     }
 
+    console.log('✅ Payment found:', {
+      id: payment._id,
+      squareId: payment.paymentId,
+      amount: payment.amount,
+    });
+
+    // Find the refund request
+    console.log('🔍 Looking for refund:', refundId);
     const refund = payment.refunds.id(refundId);
+
     if (!refund) {
-      return res.status(404).json({ error: 'Refund request not found' });
+      console.error('❌ Refund not found');
+      console.log(
+        'Available refunds:',
+        payment.refunds?.map((r) => r._id)
+      );
+      return res.status(404).json({
+        success: false,
+        error: 'Refund request not found',
+      });
+    }
+
+    console.log('✅ Refund found:', {
+      id: refund._id,
+      amount: refund.amount,
+      status: refund.status,
+      reason: refund.reason,
+    });
+
+    // Check if already processed
+    if (refund.status !== 'pending') {
+      console.error('❌ Refund already processed:', refund.status);
+      return res.status(400).json({
+        success: false,
+        error: `Refund has already been ${refund.status}`,
+      });
     }
 
     if (action === 'approve') {
-      // Process refund with Square
-      const refundResponse = await client.refundsApi.refundPayment({
-        paymentId: payment.paymentId,
-        idempotencyKey: `refund_${Date.now()}`,
-        amountMoney: {
-          amount: Math.round(refund.amount * 100), // Convert to cents
-          currency: 'USD',
-        },
+      // Check for Square payment ID
+      if (!payment.paymentId) {
+        console.error('❌ Missing Square payment ID');
+        return res.status(400).json({
+          success: false,
+          error: 'Payment missing Square payment ID',
+        });
+      }
+
+      // Check Square access token
+      if (!process.env.SQUARE_ACCESS_TOKEN) {
+        console.error('❌ SQUARE_ACCESS_TOKEN not configured');
+        return res.status(500).json({
+          success: false,
+          error: 'Payment system configuration error',
+        });
+      }
+
+      console.log('💰 Processing Square refund for:', {
+        squarePaymentId: payment.paymentId,
+        amount: refund.amount,
         reason: refund.reason,
       });
 
-      const squareRefund = refundResponse.result.refund;
+      try {
+        // Process refund with Square
+        const refundResponse = await refundsApi.refundPayment({
+          paymentId: payment.paymentId,
+          idempotencyKey: `refund_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
+          amountMoney: {
+            amount: Math.round(refund.amount * 100), // Convert to cents
+            currency: 'USD',
+          },
+          reason: refund.reason || adminNotes || 'Customer request',
+        });
 
-      // Update refund status
-      refund.status = 'completed';
-      refund.refundId = squareRefund.id; // Square refund ID
-      refund.processedAt = new Date();
-      refund.refundedBy = processedBy;
-      refund.notes = adminNotes;
+        // Validate Square response
+        if (
+          !refundResponse ||
+          !refundResponse.result ||
+          !refundResponse.result.refund
+        ) {
+          console.error('❌ Invalid Square response:', refundResponse);
+          throw new Error('Invalid response from Square API');
+        }
 
-      // Update payment totals
-      payment.totalRefunded += refund.amount;
-      payment.refundStatus =
-        payment.totalRefunded >= payment.amount ? 'full' : 'partial';
+        const squareRefund = refundResponse.result.refund;
 
-      await payment.save();
+        console.log('✅ Square refund created:', {
+          id: squareRefund.id,
+          status: squareRefund.status,
+          amount: squareRefund.amountMoney?.amount,
+        });
 
-      // Send confirmation email to parent
-      await sendRefundConfirmation(payment, refund);
+        // Update refund record
+        refund.status = 'completed';
+        refund.squareRefundId = squareRefund.id;
+        refund.processedAt = new Date();
+        refund.refundedBy = processedBy;
+        refund.notes = adminNotes || 'Approved via admin panel';
+
+        // Update payment totals
+        payment.totalRefunded = (payment.totalRefunded || 0) + refund.amount;
+        payment.refundStatus =
+          payment.totalRefunded >= payment.amount ? 'full' : 'partial';
+
+        await payment.save();
+
+        // Send confirmation email
+        try {
+          await sendRefundConfirmation(payment, refund);
+          console.log('✅ Refund confirmation email sent');
+        } catch (emailError) {
+          console.warn('⚠️ Email sending failed:', emailError.message);
+        }
+
+        return res.json({
+          success: true,
+          message: 'Refund approved and processed successfully',
+          refund: {
+            _id: refund._id,
+            amount: refund.amount,
+            status: refund.status,
+            squareRefundId: refund.squareRefundId,
+            processedAt: refund.processedAt,
+          },
+        });
+      } catch (squareError) {
+        console.error('❌ Square API error:', {
+          message: squareError.message,
+          code: squareError.errors?.[0]?.code,
+          detail: squareError.errors?.[0]?.detail,
+        });
+
+        // Mark refund as failed
+        refund.status = 'failed';
+        refund.notes = `Square error: ${squareError.errors?.[0]?.detail || squareError.message}`;
+        refund.processedAt = new Date();
+        await payment.save();
+
+        let errorMessage = 'Failed to process refund with Square';
+
+        if (squareError.errors && squareError.errors.length > 0) {
+          const squareErr = squareError.errors[0];
+          if (squareErr.code === 'UNAUTHORIZED') {
+            errorMessage =
+              'Square API authentication failed. Please check your access token.';
+          } else if (squareErr.code === 'PAYMENT_NOT_FOUND') {
+            errorMessage = 'Payment not found in Square system.';
+          } else if (squareErr.code === 'REFUND_ALREADY_COMPLETED') {
+            errorMessage = 'This payment has already been refunded.';
+          } else if (squareErr.detail) {
+            errorMessage = squareErr.detail;
+          }
+        }
+
+        return res.status(400).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
     } else if (action === 'reject') {
+      // Handle rejection
       refund.status = 'failed';
       refund.notes = adminNotes || 'Refund rejected';
       refund.refundedBy = processedBy;
+      refund.processedAt = new Date();
 
-      payment.refundStatus = payment.totalRefunded > 0 ? 'partial' : 'none';
       await payment.save();
-    }
 
-    res.json({
-      success: true,
-      message: `Refund ${action}d successfully`,
-      refund,
-    });
+      return res.json({
+        success: true,
+        message: 'Refund rejected successfully',
+        refund: {
+          _id: refund._id,
+          status: refund.status,
+          notes: refund.notes,
+          processedAt: refund.processedAt,
+        },
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid action. Use "approve" or "reject"',
+      });
+    }
   } catch (error) {
-    console.error('Refund processing error:', error);
-    res.status(500).json({ error: 'Failed to process refund' });
+    console.error('❌ Refund processing error:', {
+      message: error.message,
+      stack: error.stack,
+      body: req.body,
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error processing refund',
+      details:
+        process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
   }
 });
 
@@ -134,12 +343,15 @@ router.post('/process', authenticate, async (req, res) => {
 router.get('/all', authenticate, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Unauthorized' });
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized',
+      });
     }
 
-    // Get all payments that have refunds (any status)
+    // Get all payments that have refunds
     const paymentsWithRefunds = await Payment.aggregate([
-      { $match: { 'refunds.0': { $exists: true } } }, // Payments that have at least one refund
+      { $match: { 'refunds.0': { $exists: true } } },
       {
         $lookup: {
           from: 'users',
@@ -171,20 +383,23 @@ router.get('/all', authenticate, async (req, res) => {
           createdAt: 1,
           receiptUrl: 1,
           status: 1,
-          cardLastFour: 1, // Add card details
-          cardBrand: 1, // Add card brand
-          buyerEmail: 1, // Add buyer email from payment
+          cardLastFour: 1,
+          cardBrand: 1,
+          buyerEmail: 1,
         },
       },
-      { $sort: { createdAt: -1 } }, // Sort by most recent first
+      { $sort: { createdAt: -1 } },
     ]);
 
-    console.log(`Found ${paymentsWithRefunds.length} payments with refunds`);
+    console.log(`✅ Found ${paymentsWithRefunds.length} payments with refunds`);
 
     res.json(paymentsWithRefunds);
   } catch (error) {
-    console.error('Error fetching all refunds:', error);
-    res.status(500).json({ error: 'Failed to fetch refunds' });
+    console.error('❌ Error fetching all refunds:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch refunds',
+    });
   }
 });
 
@@ -192,7 +407,10 @@ router.get('/all', authenticate, async (req, res) => {
 router.get('/pending', authenticate, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Unauthorized' });
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized',
+      });
     }
 
     const pendingRefunds = await Payment.aggregate([
@@ -231,12 +449,51 @@ router.get('/pending', authenticate, async (req, res) => {
 
     res.json(pendingRefunds);
   } catch (error) {
-    console.error('Error fetching pending refunds:', error);
-    res.status(500).json({ error: 'Failed to fetch pending refunds' });
+    console.error('❌ Error fetching pending refunds:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pending refunds',
+    });
   }
 });
 
-// Email notification functions
+// Add a debug endpoint
+router.get('/debug/square', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    console.log('🧪 Testing Square configuration...');
+
+    const config = {
+      hasAccessToken: !!process.env.SQUARE_ACCESS_TOKEN,
+      tokenPrefix: process.env.SQUARE_ACCESS_TOKEN
+        ? `${process.env.SQUARE_ACCESS_TOKEN.substring(0, 20)}...`
+        : 'NOT SET',
+      environment: process.env.NODE_ENV,
+      isSandbox: process.env.SQUARE_ACCESS_TOKEN?.includes('sandbox-'),
+      isProduction: process.env.SQUARE_ACCESS_TOKEN?.startsWith('sq0atp-'),
+    };
+
+    console.log('📋 Configuration:', config);
+
+    res.json({
+      success: true,
+      message: 'Square configuration check',
+      config,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('❌ Debug error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Email notification functions (keep these the same)
 async function sendRefundNotification(payment, refundRequest, user) {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@partizanhoops.com';
 
@@ -260,7 +517,7 @@ async function sendRefundNotification(payment, refundRequest, user) {
         <p>Please review this refund request in the admin panel.</p>
         
         <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-          <a href="${process.env.ADMIN_URL}/refunds" 
+          <a href="${process.env.ADMIN_URL || 'https://partizanhoops.com'}/admin/refunds" 
              style="background: #dc2626; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
             Review Refund Request
           </a>
@@ -271,7 +528,6 @@ async function sendRefundNotification(payment, refundRequest, user) {
 }
 
 async function sendRefundConfirmation(payment, refund) {
-  // Get parent email (you might need to populate this differently)
   const Parent = require('../models/Parent');
   const parent = await Parent.findById(payment.parentId);
 

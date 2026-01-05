@@ -1,4 +1,3 @@
-// services/square-payments.js
 const { Client, Environment } = require('square');
 const { randomUUID } = require('crypto');
 const mongoose = require('mongoose');
@@ -19,30 +18,6 @@ const client = new Client({
 });
 
 const { paymentsApi, customersApi, refundsApi } = client;
-
-// Test Square connection
-async function testSquareConnection() {
-  try {
-    console.log('🔧 Testing Square connection...');
-    console.log('Access token exists:', !!process.env.SQUARE_ACCESS_TOKEN);
-    console.log('Environment:', process.env.NODE_ENV);
-
-    const { locationsApi } = client;
-    const response = await locationsApi.listLocations();
-
-    console.log(
-      '✅ Square connection successful! Locations:',
-      response.result.locations?.length || 0
-    );
-    return true;
-  } catch (error) {
-    console.error('❌ Square connection failed:', error.message);
-    return false;
-  }
-}
-
-// Initialize connection test
-testSquareConnection();
 
 async function submitPayment(
   sourceId,
@@ -104,7 +79,7 @@ async function submitPayment(
         currency: 'USD',
       },
       customerId,
-      locationId: process.env.SQUARE_LOCATION_ID,
+      locationId: process.env.SQUARE_LOCATION_ID, // Always use from env
       autocomplete: true,
       referenceId: `parent:${parentId}`,
       note:
@@ -162,6 +137,7 @@ async function submitPayment(
     // Update players if specified
     if (playerIds.length > 0) {
       await Promise.all([
+        // Update player documents
         Player.updateMany(
           { _id: { $in: playerIds } },
           {
@@ -182,6 +158,7 @@ async function submitPayment(
           },
           { session }
         ),
+        // Update registrations
         Registration.updateMany(
           {
             player: { $in: playerIds },
@@ -232,14 +209,19 @@ async function submitPayment(
     };
   } catch (error) {
     await session.abortTransaction();
-    console.error('Payment processing failed:', error.message);
-    throw error;
+    console.error('Payment processing failed:', {
+      error: error.message,
+      stack: error.stack,
+      parentId,
+      playerIds,
+    });
+    throw error; // Re-throw the original error to preserve stack trace
   } finally {
     session.endSession();
   }
 }
 
-// REFUND FUNCTIONALITY - FIXED VERSION
+// REFUND FUNCTIONALITY
 async function processRefund(
   paymentId,
   amount,
@@ -249,8 +231,6 @@ async function processRefund(
   session.startTransaction();
 
   try {
-    console.log('🔄 Starting refund process for payment:', paymentId);
-
     // Validate inputs
     if (!paymentId) throw new Error('Payment ID is required');
     if (!amount || amount <= 0)
@@ -258,18 +238,18 @@ async function processRefund(
     if (!process.env.SQUARE_LOCATION_ID)
       throw new Error('Square location ID not configured');
 
-    console.log('💰 Refund amount:', amount, 'Reason:', reason);
+    console.log('processRefund called with paymentId:', paymentId);
 
-    // Find payment by Square paymentId
+    // FIX: Since paymentId is the Square payment ID, only search by paymentId field
     const paymentRecord = await Payment.findOne({
-      paymentId: paymentId,
+      paymentId: paymentId, // Only search by Square paymentId, not by _id
     }).session(session);
 
     if (!paymentRecord) {
       throw new Error(`Payment record not found with Square ID: ${paymentId}`);
     }
 
-    console.log('✅ Found payment record:', {
+    console.log('Found payment record in processRefund:', {
       mongoId: paymentRecord._id,
       squareId: paymentRecord.paymentId,
       amount: paymentRecord.amount,
@@ -311,7 +291,7 @@ async function processRefund(
 
     const refundRequest = {
       idempotencyKey,
-      paymentId: paymentRecord.paymentId,
+      paymentId: paymentRecord.paymentId, // Use the Square payment ID
       amountMoney: {
         amount: amountInCents,
         currency: 'USD',
@@ -319,22 +299,12 @@ async function processRefund(
       reason,
     };
 
-    console.log('📤 Sending refund request to Square...');
     const { result } = await refundsApi.refundPayment(refundRequest);
-
-    // FIX: Proper null checking
-    if (!result || !result.refund) {
-      console.error('Invalid Square response:', result);
-      throw new Error('Invalid response from Square API');
-    }
-
     const squareRefund = result.refund;
 
-    console.log('✅ Square refund created:', {
-      refundId: squareRefund.id,
-      status: squareRefund.status,
-      amount: squareRefund.amountMoney?.amount,
-    });
+    if (!squareRefund) {
+      throw new Error('Square refund response invalid');
+    }
 
     // Update payment record with refund details
     const newRefundedAmount = previouslyRefunded + amount;
@@ -347,23 +317,15 @@ async function processRefund(
       ? 'refunded'
       : isPartialRefund
         ? 'partially_refunded'
-        : 'partial';
-
-    // Initialize refunds array if it doesn't exist
-    if (!paymentRecord.refunds) {
-      paymentRecord.refunds = [];
-    }
-
-    // Add the new refund
+        : paymentRecord.refundStatus;
+    paymentRecord.refunds = paymentRecord.refunds || [];
     paymentRecord.refunds.push({
       refundId: squareRefund.id,
-      squareRefundId: squareRefund.id,
       amount: amount,
       reason: reason,
-      status: squareRefund.status.toLowerCase(),
+      status: squareRefund.status,
       processedAt: new Date(),
-      source: 'web',
-      notes: `Refund processed via admin panel`,
+      squareRefundId: squareRefund.id,
     });
 
     await paymentRecord.save({ session });
@@ -436,7 +398,6 @@ async function processRefund(
     }
 
     await session.commitTransaction();
-    console.log('✅ Refund transaction committed successfully');
 
     return {
       success: true,
@@ -452,61 +413,32 @@ async function processRefund(
     };
   } catch (error) {
     await session.abortTransaction();
-
-    console.error('❌ Refund processing failed:', {
-      message: error.message,
+    console.error('Refund processing failed:', {
+      error: error.message,
       stack: error.stack,
       paymentId,
       amount,
-      squareErrors: error.errors,
     });
 
-    // FIXED: Proper error handling with null checks
-    if (
-      error.errors &&
-      Array.isArray(error.errors) &&
-      error.errors.length > 0
-    ) {
+    // Handle Square-specific errors
+    if (error.errors) {
       const squareError = error.errors[0];
-      if (squareError && squareError.code) {
-        switch (squareError.code) {
-          case 'REFUND_ALREADY_PENDING':
-            throw new Error('A refund for this payment is already in progress');
-          case 'REFUND_ALREADY_COMPLETED':
-            throw new Error('This payment has already been refunded');
-          case 'INSUFFICIENT_PERMISSIONS':
-            throw new Error(
-              'Refund permission denied. Please contact support.'
-            );
-          case 'PAYMENT_NOT_FOUND':
-            throw new Error('Payment not found in Square system');
-          case 'INVALID_AMOUNT':
-            throw new Error('Invalid refund amount specified');
-          default:
-            throw new Error(
-              squareError.detail || 'Square refund processing failed'
-            );
-        }
+      switch (squareError.code) {
+        case 'REFUND_ALREADY_PENDING':
+          throw new Error('A refund for this payment is already in progress');
+        case 'REFUND_ALREADY_COMPLETED':
+          throw new Error('This payment has already been refunded');
+        case 'INSUFFICIENT_PERMISSIONS':
+          throw new Error('Refund permission denied. Please contact support.');
+        case 'PAYMENT_NOT_FOUND':
+          throw new Error('Payment not found in Square system');
+        case 'INVALID_AMOUNT':
+          throw new Error('Invalid refund amount specified');
+        default:
+          throw new Error(
+            squareError.detail || 'Square refund processing failed'
+          );
       }
-    }
-
-    // Generic error messages based on status code
-    if (error.message.includes('401')) {
-      throw new Error(
-        'Square API authentication failed. Please check your access token.'
-      );
-    }
-
-    if (error.message.includes('404')) {
-      throw new Error(
-        'Payment not found in Square. Please check the payment ID.'
-      );
-    }
-
-    if (error.message.includes('400')) {
-      throw new Error(
-        'Invalid refund request. Please check the payment details.'
-      );
     }
 
     throw error;
