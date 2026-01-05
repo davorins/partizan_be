@@ -71,10 +71,12 @@ router.post('/square-payment', authenticate, async (req, res) => {
 
 // Process refund (ADMIN ONLY)
 router.post('/refund', authenticate, isAdmin, async (req, res) => {
+  console.log('🔄 ADMIN REFUND REQUEST RECEIVED');
+
   try {
     const { paymentId, amount, reason, parentId, refundAll = false } = req.body;
 
-    console.log('Admin refund request received:', {
+    console.log('📋 Request details:', {
       paymentId,
       amount,
       reason,
@@ -86,6 +88,7 @@ router.post('/refund', authenticate, isAdmin, async (req, res) => {
 
     // Validate required fields
     if (!paymentId) {
+      console.error('❌ Missing paymentId');
       return res.status(400).json({
         success: false,
         error: 'Payment ID is required',
@@ -93,110 +96,201 @@ router.post('/refund', authenticate, isAdmin, async (req, res) => {
     }
 
     if (!amount || amount <= 0) {
+      console.error('❌ Invalid amount:', amount);
       return res.status(400).json({
         success: false,
         error: 'Valid refund amount is required',
       });
     }
 
+    console.log('🔍 Searching for payment...');
+
     // Try to find payment by either MongoDB _id OR Square paymentId
-    let paymentRecord;
+    let paymentRecord = null;
 
     // Check if it's a valid MongoDB ObjectId (24 hex characters)
     const isValidMongoId = /^[0-9a-fA-F]{24}$/.test(paymentId);
 
     if (isValidMongoId) {
       // Try to find by MongoDB _id
+      console.log('🔍 Searching by MongoDB _id:', paymentId);
       paymentRecord = await Payment.findById(paymentId);
       console.log(
-        'Searching by MongoDB _id:',
-        paymentId,
-        'Found:',
-        !!paymentRecord
+        '📊 MongoDB search result:',
+        paymentRecord ? 'Found' : 'Not found'
       );
     }
 
     // If not found by _id, try by Square paymentId
     if (!paymentRecord) {
+      console.log('🔍 Searching by Square paymentId:', paymentId);
       paymentRecord = await Payment.findOne({ paymentId: paymentId });
       console.log(
-        'Searching by Square paymentId:',
-        paymentId,
-        'Found:',
-        !!paymentRecord
+        '📊 Square search result:',
+        paymentRecord ? 'Found' : 'Not found'
       );
     }
 
     if (!paymentRecord) {
-      console.log('Payment not found with any ID:', paymentId);
+      console.error('❌ Payment not found with any ID:', paymentId);
       return res.status(404).json({
         success: false,
         error: `Could not find payment with id: ${paymentId}`,
+        message: 'Payment record not found in database',
       });
     }
 
-    console.log('Found payment record:', {
+    console.log('✅ Found payment record:', {
       mongoId: paymentRecord._id,
       squareId: paymentRecord.paymentId,
       amount: paymentRecord.amount,
       currentRefunds: paymentRecord.refunds?.length || 0,
+      alreadyRefunded: paymentRecord.refundedAmount || 0,
+      refundStatus: paymentRecord.refundStatus || 'none',
       parentId: paymentRecord.parentId,
     });
 
+    // Validate that we have a Square payment ID
+    if (!paymentRecord.paymentId) {
+      console.error(
+        '❌ No Square payment ID found for payment:',
+        paymentRecord._id
+      );
+      return res.status(400).json({
+        success: false,
+        error: 'Payment does not have a valid Square payment ID',
+        message: 'Cannot process refund without Square payment ID',
+      });
+    }
+
+    // Check if payment is already fully refunded
+    if (
+      paymentRecord.refundStatus === 'refunded' ||
+      paymentRecord.refundStatus === 'full'
+    ) {
+      console.error('❌ Payment already fully refunded');
+      return res.status(400).json({
+        success: false,
+        error: 'Payment has already been fully refunded',
+        message: 'This payment cannot be refunded again',
+      });
+    }
+
+    // Calculate available refund amount
+    const alreadyRefunded = paymentRecord.refundedAmount || 0;
+    const availableForRefund = paymentRecord.amount - alreadyRefunded;
+
+    if (amount > availableForRefund) {
+      console.error('❌ Refund amount exceeds available amount:', {
+        requested: amount,
+        available: availableForRefund,
+        alreadyRefunded: alreadyRefunded,
+      });
+      return res.status(400).json({
+        success: false,
+        error: `Refund amount exceeds available balance`,
+        message: `Maximum refundable amount: $${availableForRefund.toFixed(2)}`,
+        availableAmount: availableForRefund,
+      });
+    }
+
+    console.log('💰 Processing refund through Square...');
+
     // Now process the refund using the Square payment ID
-    const result = await processRefund(paymentRecord.paymentId, amount, {
-      reason: reason || 'Customer request',
-      parentId: parentId || paymentRecord.parentId,
-      refundAll,
-    });
+    try {
+      const result = await processRefund(paymentRecord.paymentId, amount, {
+        reason: reason || 'Customer request',
+        parentId: parentId || paymentRecord.parentId,
+        refundAll,
+      });
 
-    console.log('Refund processed successfully by admin:', {
-      adminId: req.user._id,
-      adminEmail: req.user.email,
-      result,
-    });
+      console.log('✅ Refund processed successfully:', {
+        adminId: req.user._id,
+        adminEmail: req.user.email,
+        refundId: result.refund?.id,
+        amount: result.refund?.amount,
+        status: result.refund?.status,
+      });
 
-    res.json({
-      success: true,
-      message: 'Refund processed successfully',
-      refund: result.refund,
-    });
+      // Refresh the payment record to get updated data
+      const updatedPayment = await Payment.findById(paymentRecord._id);
+
+      res.json({
+        success: true,
+        message: 'Refund processed successfully',
+        refund: result.refund,
+        payment: {
+          id: updatedPayment?._id,
+          squareId: updatedPayment?.paymentId,
+          refundedAmount: updatedPayment?.refundedAmount,
+          refundStatus: updatedPayment?.refundStatus,
+          availableForRefund: updatedPayment
+            ? updatedPayment.amount - (updatedPayment.refundedAmount || 0)
+            : 0,
+        },
+      });
+    } catch (processError) {
+      console.error('❌ Error in processRefund:', {
+        message: processError.message,
+        squareId: paymentRecord.paymentId,
+        amount: amount,
+      });
+
+      // Re-throw the error to be caught by outer try-catch
+      throw processError;
+    }
   } catch (error) {
-    console.error('Refund route error:', {
+    console.error('❌ REFUND ROUTE ERROR:', {
       message: error.message,
       stack: error.stack,
       body: req.body,
       adminId: req.user._id,
+      timestamp: new Date().toISOString(),
     });
 
-    // Handle specific Square errors
-    if (error.message.includes('already been refunded')) {
-      return res.status(400).json({
-        success: false,
-        error: error.message,
-      });
+    // Handle specific error messages
+    let statusCode = 400;
+    let errorMessage = error.message || 'Failed to process refund request';
+    let userMessage = errorMessage;
+
+    // Map specific error messages to user-friendly ones
+    if (errorMessage.includes('already been refunded')) {
+      userMessage = 'This payment has already been refunded.';
+      statusCode = 400;
+    } else if (errorMessage.includes('not found')) {
+      userMessage =
+        'Payment not found in Square system. Please check the payment ID.';
+      statusCode = 404;
+    } else if (errorMessage.includes('permission denied')) {
+      userMessage =
+        'Permission denied. Please check your Square API permissions.';
+      statusCode = 403;
+    } else if (errorMessage.includes('authentication')) {
+      userMessage =
+        'Square API authentication failed. Please check your access token.';
+      statusCode = 401;
+    } else if (errorMessage.includes('401')) {
+      userMessage =
+        'Square API authentication failed. Please check your access token.';
+      statusCode = 401;
+    } else if (errorMessage.includes('404')) {
+      userMessage = 'Payment not found in Square system.';
+      statusCode = 404;
+    } else if (errorMessage.includes('timeout')) {
+      userMessage = 'Request timed out. Please try again.';
+      statusCode = 408;
+    } else if (errorMessage.includes('network')) {
+      userMessage =
+        'Network error. Please check your connection and try again.';
+      statusCode = 503;
     }
 
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        error: error.message,
-      });
-    }
-
-    if (
-      error.message.includes('permission denied') ||
-      error.message.includes('Square refund processing failed')
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: error.message,
-      });
-    }
-
-    res.status(400).json({
+    res.status(statusCode).json({
       success: false,
-      error: error.message || 'Failed to process refund request',
+      error: userMessage,
+      details:
+        process.env.NODE_ENV === 'development' ? error.message : undefined,
+      timestamp: new Date().toISOString(),
     });
   }
 });
