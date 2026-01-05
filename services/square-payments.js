@@ -48,6 +48,15 @@ async function submitPayment(
     if (!process.env.SQUARE_LOCATION_ID)
       throw new Error('Square location ID not configured');
 
+    // CRITICAL: Validate Square credentials first
+    console.log('🔐 Square configuration check:', {
+      hasAccessToken: !!process.env.SQUARE_ACCESS_TOKEN,
+      tokenLength: process.env.SQUARE_ACCESS_TOKEN?.length,
+      tokenFirst20: process.env.SQUARE_ACCESS_TOKEN?.substring(0, 20),
+      locationId: process.env.SQUARE_LOCATION_ID,
+      environment: client.environment,
+    });
+
     // Validate player IDs if provided
     if (playerIds.length > 0) {
       const validPlayers = await Player.countDocuments({
@@ -62,15 +71,59 @@ async function submitPayment(
       }
     }
 
-    // Create or find Square customer
-    const { result: customerResult } = await customersApi.createCustomer({
-      emailAddress: buyerEmailAddress,
-      idempotencyKey: randomUUID(),
-    });
-    const customerId = customerResult.customer?.id;
-    if (!customerId) throw new Error('Failed to create customer record');
+    // FIXED: Customer creation with better error handling
+    let customerId;
+    try {
+      // First, try to find existing customer by email
+      const searchResponse = await customersApi.searchCustomers({
+        query: {
+          filter: {
+            emailAddress: {
+              exact: buyerEmailAddress,
+            },
+          },
+        },
+      });
 
-    // Create payment request
+      if (searchResponse.result.customers?.length > 0) {
+        // Customer exists, use their ID
+        customerId = searchResponse.result.customers[0].id;
+        console.log('✅ Found existing Square customer:', customerId);
+      } else {
+        // Create new customer
+        const createResponse = await customersApi.createCustomer({
+          emailAddress: buyerEmailAddress,
+          idempotencyKey: randomUUID(),
+          referenceId: `parent:${parentId}`,
+          // Only include basic info to avoid validation issues
+          givenName: 'Customer', // Required field
+          familyName: buyerEmailAddress.split('@')[0] || 'User',
+        });
+
+        if (createResponse.result.customer?.id) {
+          customerId = createResponse.result.customer.id;
+          console.log('✅ Created new Square customer:', customerId);
+        } else {
+          console.warn(
+            '⚠️ Could not create or find customer, proceeding without customer ID'
+          );
+          customerId = null;
+        }
+      }
+    } catch (customerError) {
+      console.error('⚠️ Customer creation/search failed:', {
+        message: customerError.message,
+        code: customerError.errors?.[0]?.code,
+        detail: customerError.errors?.[0]?.detail,
+      });
+
+      // IMPORTANT: Customer creation is not critical for payment
+      // Square allows payments without customer ID
+      customerId = null;
+      console.log('ℹ️ Proceeding with customerId = null');
+    }
+
+    // FIXED: Prepare payment request (customerId is optional)
     const paymentRequest = {
       idempotencyKey: randomUUID(),
       sourceId,
@@ -78,23 +131,45 @@ async function submitPayment(
         amount: amount,
         currency: 'USD',
       },
-      customerId,
-      locationId: process.env.SQUARE_LOCATION_ID, // Always use from env
+      locationId: process.env.SQUARE_LOCATION_ID,
       autocomplete: true,
       referenceId: `parent:${parentId}`,
       note:
         playerIds.length > 0
-          ? `Payment for ${playerIds.length} player(s)`
+          ? `Payment for ${playerIds.length} player(s) - ${season} ${year}`
           : description,
       buyerEmailAddress,
     };
+
+    // Only include customerId if we have one
+    if (customerId) {
+      paymentRequest.customerId = customerId;
+    }
+
+    console.log('💳 Processing payment request:', {
+      amount: amount / 100,
+      locationId: paymentRequest.locationId,
+      hasCustomerId: !!customerId,
+      playerCount: playerIds.length,
+      referenceId: paymentRequest.referenceId,
+    });
 
     // Process payment with Square
     const { result } = await paymentsApi.createPayment(paymentRequest);
     const squarePayment = result.payment;
 
-    if (!squarePayment || squarePayment.status !== 'COMPLETED') {
-      throw new Error(`Payment failed with status: ${squarePayment?.status}`);
+    console.log('🔄 Square payment response:', {
+      paymentId: squarePayment?.id,
+      status: squarePayment?.status,
+      receiptUrl: squarePayment?.receiptUrl,
+    });
+
+    if (!squarePayment) {
+      throw new Error('No payment response from Square');
+    }
+
+    if (squarePayment.status !== 'COMPLETED') {
+      throw new Error(`Payment failed with status: ${squarePayment.status}`);
     }
 
     // Store payment details
@@ -180,20 +255,32 @@ async function submitPayment(
     }
 
     // Send receipt email
-    await sendEmail({
-      to: buyerEmailAddress,
-      subject: 'Payment Confirmation - Basketball Camp',
-      html: `
-        <h2>Payment Successful</h2>
-        <p>Amount: $${(amount / 100).toFixed(2)}</p>
-        ${playerIds.length > 0 ? `<p>Players: ${playerIds.length}</p>` : ''}
-        <p>Payment ID: ${squarePayment.id}</p>
-        <p>Date: ${new Date().toLocaleDateString()}</p>
-        <p><a href="${squarePayment.receiptUrl}">View Receipt</a></p>
-      `,
-    });
+    try {
+      await sendEmail({
+        to: buyerEmailAddress,
+        subject: 'Payment Confirmation - Basketball Camp',
+        html: `
+          <h2>Payment Successful</h2>
+          <p>Amount: $${(amount / 100).toFixed(2)}</p>
+          ${playerIds.length > 0 ? `<p>Players: ${playerIds.length}</p>` : ''}
+          <p>Payment ID: ${squarePayment.id}</p>
+          <p>Date: ${new Date().toLocaleDateString()}</p>
+          <p><a href="${squarePayment.receiptUrl}">View Receipt</a></p>
+        `,
+      });
+    } catch (emailError) {
+      console.warn('⚠️ Email sending failed:', emailError.message);
+      // Don't fail the payment if email fails
+    }
 
     await session.commitTransaction();
+
+    console.log('✅ Payment completed successfully:', {
+      paymentId: paymentRecord._id,
+      squareId: squarePayment.id,
+      amount: amount / 100,
+      playerCount: playerIds.length,
+    });
 
     return {
       success: true,
@@ -209,13 +296,24 @@ async function submitPayment(
     };
   } catch (error) {
     await session.abortTransaction();
-    console.error('Payment processing failed:', {
+    console.error('❌ Payment processing failed:', {
       error: error.message,
       stack: error.stack,
       parentId,
       playerIds,
+      season,
+      year,
+      tryoutId,
     });
-    throw error; // Re-throw the original error to preserve stack trace
+
+    // Rethrow with more context
+    if (error.errors) {
+      const squareError = error.errors[0];
+      throw new Error(
+        `Square API Error: ${squareError.code} - ${squareError.detail}`
+      );
+    }
+    throw error;
   } finally {
     session.endSession();
   }
@@ -291,7 +389,7 @@ async function processRefund(
 
     const refundRequest = {
       idempotencyKey,
-      paymentId: paymentRecord.paymentId, // Use the Square payment ID
+      paymentId: paymentRecord.paymentId,
       amountMoney: {
         amount: amountInCents,
         currency: 'USD',

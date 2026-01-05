@@ -4,10 +4,8 @@ const { authenticate } = require('../utils/auth');
 const Payment = require('../models/Payment');
 const { sendEmail } = require('../utils/email');
 const router = express.Router();
-const crypto = require('crypto');
-
-// IMPORTANT: Initialize Square client directly here to avoid import issues
 const { Client, Environment } = require('square');
+const crypto = require('crypto');
 
 // Create Square client for refund routes
 const squareClient = new Client({
@@ -491,6 +489,27 @@ router.get('/debug/square', authenticate, async (req, res) => {
       error: error.message,
     });
   }
+});
+
+router.use('/process', authenticate, (req, res, next) => {
+  // Only admins can process refunds
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: 'Unauthorized - Admin access required',
+    });
+  }
+
+  // Check Square configuration
+  if (!process.env.SQUARE_ACCESS_TOKEN) {
+    console.error('❌ SQUARE_ACCESS_TOKEN not configured');
+    return res.status(500).json({
+      success: false,
+      error: 'Payment system configuration error',
+    });
+  }
+
+  next();
 });
 
 // Email notification functions (keep these the same)
