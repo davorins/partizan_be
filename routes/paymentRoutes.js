@@ -69,7 +69,7 @@ router.post('/square-payment', authenticate, async (req, res) => {
   }
 });
 
-// Process refund - ADMIN ONLY
+// Process refund (ADMIN ONLY)
 router.post('/refund', authenticate, isAdmin, async (req, res) => {
   try {
     const { paymentId, amount, reason, parentId, refundAll = false } = req.body;
@@ -99,9 +99,54 @@ router.post('/refund', authenticate, isAdmin, async (req, res) => {
       });
     }
 
-    const result = await processRefund(paymentId, amount, {
+    // Try to find payment by either MongoDB _id OR Square paymentId
+    let paymentRecord;
+
+    // Check if it's a valid MongoDB ObjectId (24 hex characters)
+    const isValidMongoId = /^[0-9a-fA-F]{24}$/.test(paymentId);
+
+    if (isValidMongoId) {
+      // Try to find by MongoDB _id
+      paymentRecord = await Payment.findById(paymentId);
+      console.log(
+        'Searching by MongoDB _id:',
+        paymentId,
+        'Found:',
+        !!paymentRecord
+      );
+    }
+
+    // If not found by _id, try by Square paymentId
+    if (!paymentRecord) {
+      paymentRecord = await Payment.findOne({ paymentId: paymentId });
+      console.log(
+        'Searching by Square paymentId:',
+        paymentId,
+        'Found:',
+        !!paymentRecord
+      );
+    }
+
+    if (!paymentRecord) {
+      console.log('Payment not found with any ID:', paymentId);
+      return res.status(404).json({
+        success: false,
+        error: `Could not find payment with id: ${paymentId}`,
+      });
+    }
+
+    console.log('Found payment record:', {
+      mongoId: paymentRecord._id,
+      squareId: paymentRecord.paymentId,
+      amount: paymentRecord.amount,
+      currentRefunds: paymentRecord.refunds?.length || 0,
+      parentId: paymentRecord.parentId,
+    });
+
+    // Now process the refund using the Square payment ID
+    const result = await processRefund(paymentRecord.paymentId, amount, {
       reason: reason || 'Customer request',
-      parentId,
+      parentId: parentId || paymentRecord.parentId,
       refundAll,
     });
 

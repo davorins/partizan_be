@@ -223,7 +223,7 @@ async function submitPayment(
 
 // REFUND FUNCTIONALITY
 async function processRefund(
-  paymentId,
+  paymentId, // This is the Square payment ID
   amount,
   { reason = 'Customer request', parentId, refundAll = false }
 ) {
@@ -238,14 +238,23 @@ async function processRefund(
     if (!process.env.SQUARE_LOCATION_ID)
       throw new Error('Square location ID not configured');
 
-    // Find the payment record
+    console.log('processRefund called with paymentId:', paymentId);
+
+    // FIX: Since paymentId is the Square payment ID, only search by paymentId field
     const paymentRecord = await Payment.findOne({
-      $or: [{ paymentId: paymentId }, { _id: paymentId }],
+      paymentId: paymentId, // Only search by Square paymentId, not by _id
     }).session(session);
 
     if (!paymentRecord) {
-      throw new Error('Payment record not found');
+      throw new Error(`Payment record not found with Square ID: ${paymentId}`);
     }
+
+    console.log('Found payment record in processRefund:', {
+      mongoId: paymentRecord._id,
+      squareId: paymentRecord.paymentId,
+      amount: paymentRecord.amount,
+      refundedAmount: paymentRecord.refundedAmount || 0,
+    });
 
     // Check if payment is already refunded
     if (paymentRecord.refundStatus === 'refunded') {
@@ -282,7 +291,7 @@ async function processRefund(
 
     const refundRequest = {
       idempotencyKey,
-      paymentId: paymentRecord.paymentId,
+      paymentId: paymentRecord.paymentId, // Use the Square payment ID
       amountMoney: {
         amount: amountInCents,
         currency: 'USD',
