@@ -79,7 +79,13 @@ playerSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { 'seasons.season': { $exists: true } },
+    partialFilterExpression: {
+      $and: [
+        { 'seasons.season': { $exists: true, $ne: null } },
+        { 'seasons.year': { $exists: true, $ne: null } },
+        { 'seasons.tryoutId': { $exists: true } },
+      ],
+    },
   }
 );
 

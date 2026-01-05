@@ -11,6 +11,7 @@ const Team = require('../models/Team');
 const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
 const TournamentConfig = require('../models/TournamentConfig');
+const RegistrationFormConfig = require('../models/RegistrationFormConfig');
 const {
   comparePasswords,
   hashPassword,
@@ -283,7 +284,7 @@ router.post(
         const welcomeEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
+              <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
             </div>
             
             <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
@@ -311,7 +312,7 @@ router.post(
                 </ul>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard" 
+                  <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard" 
                      style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                     Go to Your Dashboard
                   </a>
@@ -440,7 +441,7 @@ router.post(
       grade,
       isGradeOverridden = false,
       tryoutId,
-      skipSeasonRegistration = false,
+      skipSeasonRegistration = false, // Make sure this is read properly
     } = req.body;
 
     // Calculate grade if not overridden
@@ -453,7 +454,7 @@ router.post(
     try {
       await session.startTransaction();
 
-      // 🛡️ DUPLICATE CHECK
+      // 🛡️ DUPLICATE CHECK - Check for player existence
       const existingPlayer = await Player.findOne({
         parentId,
         fullName: { $regex: new RegExp(`^${fullName.trim()}$`, 'i') },
@@ -481,43 +482,34 @@ router.post(
         });
       }
 
-      // Generate tryoutId only if season is provided AND not skipping season registration
-      const shouldCreateSeasonRegistration = season && !skipSeasonRegistration;
-      const finalTryoutId = shouldCreateSeasonRegistration
-        ? tryoutId || generateTryoutId(season, registrationYear)
-        : null;
+      // Generate tryoutId if season is provided
+      const finalTryoutId =
+        tryoutId ||
+        (season ? generateTryoutId(season, registrationYear) : null);
 
-      // Normalize inputs for consistency
-      const normalizedSeason = season ? season.trim() : null;
-      const normalizedTryoutId = finalTryoutId ? finalTryoutId.trim() : null;
-
-      // Check for duplicate registration ONLY if creating season registration
-      if (shouldCreateSeasonRegistration) {
-        const existingPlayer = await Player.findOne({
+      // Check for duplicate season registration if NOT skipping season registration
+      if (!skipSeasonRegistration && season) {
+        // FIX: Check if player already has this season registration
+        const existingSeasonPlayer = await Player.findOne({
           parentId,
           fullName: { $regex: new RegExp(`^${fullName.trim()}$`, 'i') },
           dob: new Date(dob),
-          seasons: {
-            $elemMatch: {
-              season: normalizedSeason,
-              year: registrationYear,
-              // Only check tryoutId if it's provided
-              ...(normalizedTryoutId && { tryoutId: normalizedTryoutId }),
-            },
-          },
+          'seasons.season': season,
+          'seasons.year': registrationYear,
+          ...(finalTryoutId && { 'seasons.tryoutId': finalTryoutId }),
         }).session(session);
 
-        if (existingPlayer) {
+        if (existingSeasonPlayer) {
           await session.abortTransaction();
-          console.log('❌ Duplicate player registration attempt:', {
+          console.log('❌ Duplicate season registration attempt:', {
             fullName,
             parentId,
-            season: normalizedSeason,
+            season,
             year: registrationYear,
-            tryoutId: normalizedTryoutId,
+            tryoutId: finalTryoutId,
           });
           return res.status(400).json({
-            error: `Player ${fullName} is already registered for ${normalizedSeason} ${registrationYear}`,
+            error: `Player ${fullName} is already registered for ${season} ${registrationYear}`,
           });
         }
       }
@@ -549,14 +541,14 @@ router.post(
         updatedAt: new Date(),
       };
 
-      // Only add season data if creating season registration
-      if (shouldCreateSeasonRegistration) {
-        playerData.season = normalizedSeason;
+      // Add season data if NOT skipping season registration
+      if (!skipSeasonRegistration && season) {
+        playerData.season = season.trim();
         playerData.seasons = [
           {
-            season: normalizedSeason,
+            season: season.trim(),
             year: registrationYear,
-            tryoutId: normalizedTryoutId,
+            tryoutId: finalTryoutId,
             registrationDate: new Date(),
             paymentStatus: 'pending',
             paymentComplete: false,
@@ -576,14 +568,14 @@ router.post(
 
       let registration = null;
 
-      // Create registration document ONLY if creating season registration
-      if (shouldCreateSeasonRegistration) {
+      // Create registration document if NOT skipping season registration
+      if (!skipSeasonRegistration && season) {
         registration = new Registration({
           player: player._id,
           parent: parentId,
-          season: normalizedSeason,
+          season: season.trim(),
           year: registrationYear,
-          tryoutId: normalizedTryoutId,
+          tryoutId: finalTryoutId,
           paymentStatus: 'pending',
           paymentComplete: false,
           registrationComplete: true,
@@ -592,53 +584,39 @@ router.post(
         });
 
         await registration.save({ session });
+      }
 
+      await session.commitTransaction();
+
+      // Send emails based on the registration type
+      if (!skipSeasonRegistration && season) {
         // Send tryout confirmation email
         try {
           await sendTryoutEmail(
             parent.email,
             player.fullName,
-            normalizedSeason,
+            season,
             registrationYear
           );
           console.log('Tryout confirmation email sent successfully');
         } catch (emailError) {
           console.error('Tryout email failed:', emailError);
-          // Don't fail the registration if email fails
         }
-      }
 
-      await session.commitTransaction();
-
-      if (shouldCreateSeasonRegistration && !req.body.immediatePaymentFlow) {
-        // Send pending payment email if not part of immediate payment
-        try {
-          await sendRegistrationPendingEmail(
-            parentId,
-            [player._id],
-            normalizedSeason || season,
-            registrationYear,
-            req.body.packageInfo || null
-          );
-          console.log('Pending payment email sent for new registration');
-        } catch (emailError) {
-          console.error('Failed to send pending payment email:', emailError);
-          // Don't fail the registration if email fails
-        }
-      }
-
-      // Send tryout confirmation email (existing code)
-      if (shouldCreateSeasonRegistration) {
-        try {
-          await sendTryoutEmail(
-            parent.email,
-            player.fullName,
-            normalizedSeason,
-            registrationYear
-          );
-          console.log('Tryout confirmation email sent successfully');
-        } catch (emailError) {
-          console.error('Tryout email failed:', emailError);
+        // Send pending payment email
+        if (!req.body.immediatePaymentFlow) {
+          try {
+            await sendRegistrationPendingEmail(
+              parentId,
+              [player._id],
+              season,
+              registrationYear,
+              req.body.packageInfo || null
+            );
+            console.log('Pending payment email sent for new registration');
+          } catch (emailError) {
+            console.error('Failed to send pending payment email:', emailError);
+          }
         }
       }
 
@@ -648,17 +626,18 @@ router.post(
         playerId: player._id,
         fullName: player.fullName,
         parentId,
-        season: normalizedSeason || 'No season (basic registration)',
+        season: season || 'No season (basic registration)',
         year: registrationYear,
-        hasSeasonRegistration: shouldCreateSeasonRegistration,
+        hasSeasonRegistration: !skipSeasonRegistration && season,
         paymentStatus: player.paymentStatus,
       });
 
       // Build response object
       const responseData = {
-        message: shouldCreateSeasonRegistration
-          ? 'Player registered successfully for season'
-          : 'Player registered successfully',
+        message:
+          skipSeasonRegistration || !season
+            ? 'Player registered successfully'
+            : 'Player registered successfully for season',
         player: {
           _id: player._id,
           fullName: player.fullName,
@@ -676,7 +655,7 @@ router.post(
         },
       };
 
-      // Add registration data ONLY if it exists
+      // Add registration data if it exists
       if (registration) {
         responseData.registration = {
           id: registration._id,
@@ -1515,8 +1494,8 @@ router.get(
           imgSrc: player.avatar
             ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
             : player.gender === 'Female'
-              ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
-              : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
+              ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
+              : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
         };
       });
 
@@ -2148,8 +2127,8 @@ router.delete('/player/:id/avatar', authenticate, async (req, res) => {
 
     const defaultAvatar =
       player.gender === 'Female'
-        ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
-        : 'https://partizan-be.onrender.com/uploads/avatars/boy.png';
+        ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
+        : 'https://bothell-select.onrender.com/uploads/avatars/boy.png';
 
     player.avatar = defaultAvatar;
     await player.save();
@@ -4889,8 +4868,8 @@ router.get('/players/my-players', authenticate, async (req, res) => {
       imgSrc: player.avatar
         ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
         : player.gender === 'Female'
-          ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
-          : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
+          ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
+          : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
     }));
 
     res.json(playersWithAvatars);
@@ -4939,6 +4918,54 @@ router.post(
         error: 'Failed to send training registration email',
         details: error.message,
       });
+    }
+  }
+);
+
+router.get('/registration/active-config', async (req, res) => {
+  try {
+    // Find the active form config
+    const activeConfig = await RegistrationFormConfig.findOne({
+      isActive: true,
+    }).sort({ updatedAt: -1 });
+
+    if (!activeConfig) {
+      return res.status(404).json({
+        error: 'No active registration form found',
+      });
+    }
+
+    res.json({
+      season: activeConfig.season,
+      year: activeConfig.year,
+      requiresPayment: activeConfig.requiresPayment,
+      requiresQualification: activeConfig.requiresQualification,
+      pricing: activeConfig.pricing,
+      isActive: activeConfig.isActive,
+    });
+  } catch (error) {
+    console.error('Error fetching active config:', error);
+    res.status(500).json({
+      error: 'Failed to fetch active registration config',
+    });
+  }
+});
+
+router.get(
+  '/players/:playerId/registrations',
+  authenticate,
+  async (req, res) => {
+    try {
+      const { playerId } = req.params;
+
+      const registrations = await Registration.find({
+        player: playerId,
+      }).sort({ createdAt: -1 });
+
+      res.json({ registrations });
+    } catch (error) {
+      console.error('Error fetching registrations:', error);
+      res.status(500).json({ error: 'Failed to fetch registrations' });
     }
   }
 );
