@@ -78,7 +78,7 @@ playerSchema.index(
     'seasons.tryoutId': 1,
   },
   {
-    unique: true,
+    unique: false,
     partialFilterExpression: {
       $and: [
         { 'seasons.season': { $exists: true, $ne: null } },
