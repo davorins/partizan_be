@@ -308,7 +308,7 @@ router.post(
         const welcomeEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://bothellselect.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
+              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
             </div>
             
             <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
