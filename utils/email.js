@@ -981,8 +981,8 @@ async function sendTrainingRegistrationPendingEmail(
       `;
     }
 
-    // 4. Build the training registration email
-    const subject = `Training Registration Received - Partizan ${season} ${year}`;
+    // 4. Build the registration email
+    const subject = `Registration Received - Partizan ${season} ${year}`;
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
@@ -991,13 +991,13 @@ async function sendTrainingRegistrationPendingEmail(
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
-          <h1 style="margin: 0;">🏀 Training Registration Received!</h1>
+          <h1 style="margin: 0;">🏀 Registration Received!</h1>
         </div>
         
         <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
           <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
           
-          <p style="font-size: 16px;">Thank you for registering for the Partizan ${season} ${year} training program! We've received your registration details for ${players.length} player(s).</p>
+          <p style="font-size: 16px;">Thank you for registering for the Partizan ${season} ${year} program! We've received your registration details for ${players.length} player(s).</p>
           
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
             <h3 style="margin-top: 0; color: #594230;">Training Registration Details</h3>
@@ -1013,20 +1013,20 @@ async function sendTrainingRegistrationPendingEmail(
           <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #ffc107;">
             <h4 style="margin-top: 0; color: #856404;">⚠️ Important: Payment Required</h4>
             <p style="margin: 8px 0; color: #856404;">
-              <strong>Your training registration is not complete until payment is received.</strong> 
-              Please complete your payment to secure your spot(s) in the training program.
+              <strong>Your registration is not complete until payment is received.</strong> 
+              Please complete your payment to secure your spot(s) in the program.
             </p>
             <p style="margin: 8px 0; color: #856404;">
-              You can complete your payment by logging into your account and visiting the "Training Registrations" section.
+              You can complete your payment by logging into your account and visiting the "Registrations" section.
             </p>
           </div>
           
           <p style="font-size: 16px;"><strong>What's Next?</strong></p>
           <ul style="font-size: 14px;">
-            <li>Complete your payment to secure your player's spot in training</li>
+            <li>Complete your payment to secure your player's spot in the camp</li>
             <li>You will receive training schedule information after payment is completed</li>
             <li>Look out for training materials and session details from your coach</li>
-            <li>Training schedules will be shared via email and the team portal</li>
+            <li>The schedule will be shared via email and the team portal</li>
           </ul>
           
           <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
