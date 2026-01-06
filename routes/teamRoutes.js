@@ -41,7 +41,7 @@ router.get(
       const { season, year, grade, gender } = req.query;
 
       let query = {
-        'seasons.season': season || 'Basketball Select Tryout',
+        'seasons.season': season || 'Partizan Tryout',
         'seasons.paymentComplete': true,
         'seasons.paymentStatus': 'paid',
       };

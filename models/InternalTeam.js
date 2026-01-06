@@ -41,7 +41,7 @@ const internalTeamSchema = new mongoose.Schema(
     tryoutSeason: {
       type: String,
       required: true,
-      default: 'Basketball Select Tryout',
+      default: 'Partizan AAU Tryout',
     },
     tryoutYear: {
       type: Number,

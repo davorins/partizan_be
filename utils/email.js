@@ -863,7 +863,7 @@ async function sendPaymentConfirmationEmail(
     );
     populatedContent = populatedContent.replace(
       /\[payment\.season\]/g,
-      season || 'Basketball Select Team'
+      season || 'Partizan Team'
     );
     populatedContent = populatedContent.replace(
       /\[payment\.year\]/g,

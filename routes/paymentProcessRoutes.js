@@ -1273,7 +1273,7 @@ router.post(
             <p style="margin: 8px 0;"><strong>Number of Players:</strong> ${playerCount}</p>
             <p style="margin: 8px 0;"><strong>Fee per Player:</strong> $${perPlayerAmount}</p>
             <p style="margin: 8px 0;"><strong>Total Amount Paid:</strong> $${totalAmount}</p>
-            <p style="margin: 8px 0;"><strong>Season:</strong> ${players[0]?.season || 'Basketball Select Team'} ${players[0]?.year || new Date().getFullYear()}</p>
+            <p style="margin: 8px 0;"><strong>Season:</strong> ${players[0]?.season || 'Partizan Team'} ${players[0]?.year || new Date().getFullYear()}</p>
             <p style="margin: 8px 0;"><strong>Players Registered:</strong></p>
             <ul style="margin: 8px 0;">
               ${updatedPlayers.map((p) => `<li>${p.fullName}</li>`).join('')}

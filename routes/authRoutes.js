@@ -107,8 +107,8 @@ const generateTryoutId = async (season, year) => {
     // Keep your existing fallback logic
     const seasonName = season.toLowerCase().trim();
 
-    if (seasonName.includes('basketball select tryout') && year === 2025) {
-      return 'basketballselect-tryout';
+    if (seasonName.includes('Partizan tryout') && year === 2025) {
+      return 'partizan-tryout';
     }
     if (seasonName.includes('fall training') && year === 2025) {
       return 'falltraining-2025';
@@ -1525,8 +1525,8 @@ router.get(
           imgSrc: player.avatar
             ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
             : player.gender === 'Female'
-              ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-              : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
+              ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+              : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
         };
       });
 
@@ -2158,8 +2158,8 @@ router.delete('/player/:id/avatar', authenticate, async (req, res) => {
 
     const defaultAvatar =
       player.gender === 'Female'
-        ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-        : 'https://bothell-select.onrender.com/uploads/avatars/boy.png';
+        ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+        : 'https://partizan-be.onrender.com/uploads/avatars/boy.png';
 
     player.avatar = defaultAvatar;
     await player.save();
@@ -4899,8 +4899,8 @@ router.get('/players/my-players', authenticate, async (req, res) => {
       imgSrc: player.avatar
         ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
         : player.gender === 'Female'
-          ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-          : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
+          ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+          : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
     }));
 
     res.json(playersWithAvatars);
