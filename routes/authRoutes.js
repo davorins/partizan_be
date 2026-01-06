@@ -336,7 +336,7 @@ router.post(
                 </ul>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard" 
+                  <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard" 
                      style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                     Go to Your Dashboard
                   </a>
