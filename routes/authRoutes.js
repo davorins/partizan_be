@@ -12,6 +12,7 @@ const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
 const TournamentConfig = require('../models/TournamentConfig');
 const RegistrationFormConfig = require('../models/RegistrationFormConfig');
+const SeasonEvent = require('../models/SeasonEvent');
 const {
   comparePasswords,
   hashPassword,
@@ -85,16 +86,39 @@ const generateRandomPassword = () => {
   );
 };
 
-const generateTryoutId = (season, year) => {
-  // Return hardcoded tryoutId for the 2025 Basketball Select Tryout
-  if (season === 'Basketball Select Tryout' && year === 2025) {
-    return 'basketballselect-tryout';
+const generateTryoutId = async (season, year) => {
+  console.log('🔍 generateTryoutId called with:', { season, year });
+
+  try {
+    const SeasonEvent = require('../models/SeasonEvent');
+
+    const seasonEvent = await SeasonEvent.findOne({
+      season: season.trim(),
+      year: parseInt(year),
+    });
+
+    if (seasonEvent && seasonEvent.eventId) {
+      console.log('✅ Found season event with eventId:', seasonEvent.eventId);
+      return seasonEvent.eventId; // Returns "partizan-winter-break-camp-2026"
+    }
+
+    console.log('⚠️ No season event found, using fallback');
+
+    // Keep your existing fallback logic
+    const seasonName = season.toLowerCase().trim();
+
+    if (seasonName.includes('basketball select tryout') && year === 2025) {
+      return 'basketballselect-tryout';
+    }
+    if (seasonName.includes('fall training') && year === 2025) {
+      return 'falltraining-2025';
+    }
+
+    return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}-tryout-default`;
+  } catch (error) {
+    console.error('❌ Error in generateTryoutId:', error);
+    return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}-tryout-default`;
   }
-  if (season === 'Fall Training' && year === 2025) {
-    return 'falltraining-2025';
-  }
-  // Fallback for other seasons/years (optional)
-  return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}-tryout-default`;
 };
 
 module.exports = {
@@ -441,7 +465,7 @@ router.post(
       grade,
       isGradeOverridden = false,
       tryoutId,
-      skipSeasonRegistration = false, // Make sure this is read properly
+      skipSeasonRegistration = false,
     } = req.body;
 
     // Calculate grade if not overridden
@@ -485,7 +509,14 @@ router.post(
       // Generate tryoutId if season is provided
       const finalTryoutId =
         tryoutId ||
-        (season ? generateTryoutId(season, registrationYear) : null);
+        (season ? await generateTryoutId(season, registrationYear) : null);
+
+      console.log('🔍 Generated tryoutId:', {
+        season,
+        year: registrationYear,
+        finalTryoutId,
+        providedTryoutId: tryoutId,
+      });
 
       // Check for duplicate season registration if NOT skipping season registration
       if (!skipSeasonRegistration && season) {
