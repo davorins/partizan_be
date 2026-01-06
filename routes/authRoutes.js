@@ -4424,7 +4424,7 @@ router.post(
 </div>
         
         <p style="margin: 12px 0 0 0; color: #6c757d; font-size: 13px;">
-          Go to: <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email" style="color: #594230;">${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email</a> and paste this token.
+          Go to: <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/verify-email" style="color: #594230;">${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/verify-email</a> and paste this token.
         </p>
       </div>
       
