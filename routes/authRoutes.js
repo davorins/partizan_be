@@ -4763,7 +4763,7 @@ const sendVerificationEmailWithToken = async (email, token) => {
         <div style="display:flex; justify-content: space-between; align-items: center; gap: 10px;">
           <code style="flex: 1; background:none;border:none;padding:0;font-family:'Courier New',monospace;font-size:14px;color:#212529;word-break:break-all; user-select: all; -webkit-user-select: all; cursor: text;"
                 onclick="this.select(); document.execCommand('copy');">
-            ${token}
+            <strong>${token}</strong>
           </code>
         </div>
         <p style="margin:8px 0 0 0;color:#6c757d;font-size:12px;font-style:italic;">
