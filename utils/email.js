@@ -261,7 +261,7 @@ async function sendEmail({
 
     const emailData = {
       from: 'Partizan <info@partizanhoops.com>',
-      reply_to: 'bcpartizan@proton.me',
+      reply_to: 'partizanhoops@proton.me',
       to,
       subject,
       html: finalHtml,
@@ -455,7 +455,7 @@ async function sendWelcomeEmail(parentId, playerId) {
                 <li>Practice schedules will be shared via email and the team portal</li>
               </ul>
               
-              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
               
               <p style="font-size: 16px; font-weight: bold;">Welcome to the Partizan family! 🏀</p>
             </div>
@@ -581,14 +581,14 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
             <p style="margin: 8px 0; color: #856404;">Your tournament registration is <strong>not complete</strong> until payment is received. Please complete payment as soon as possible to secure your team's spot.</p>
           </div>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">We look forward to seeing you at the tournament! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
           <p style="margin: 0;">Partizan Basketball<br>
-          bcpartizan@proton.me</p>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -711,14 +711,14 @@ async function sendTournamentRegistrationEmail(
             <p style="margin: 8px 0; color: #0f5132;">Your team(s) are officially registered for the tournament. We'll be in touch soon with more details.</p>
           </div>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">Good luck in the tournament! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
           <p style="margin: 0;">Partizan Basketball<br>
-          bcpartizan@proton.me</p>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -1029,14 +1029,14 @@ async function sendTrainingRegistrationPendingEmail(
             <li>Training schedules will be shared via email and the team portal</li>
           </ul>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">We look forward to training with you! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
           <p style="margin: 0;">Partizan Basketball<br>
-          bcpartizan@proton.me</p>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -1148,14 +1148,14 @@ async function sendRegistrationPendingEmail(
             <li>Practice schedules will be shared via email</li>
           </ul>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">We look forward to having you in our program! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
           <p style="margin: 0;">Partizan Basketball<br>
-          bcpartizan@proton.me</p>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -1436,7 +1436,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
             <h3 style="margin-top: 0;">Need Help?</h3>
             <p style="margin: 8px 0;">If you have any questions about your purchase, please contact us at:</p>
             <p style="margin: 8px 0;">
-              <strong>Email:</strong> bcpartizan@proton.me<br>
+              <strong>Email:</strong> partizanhoops@proton.me<br>
               <strong>Reference:</strong> ${transactionId || submissionId}
             </p>
           </div>

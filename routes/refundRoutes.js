@@ -455,42 +455,6 @@ router.get('/pending', authenticate, async (req, res) => {
   }
 });
 
-// Add a debug endpoint
-router.get('/debug/square', authenticate, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-
-    console.log('🧪 Testing Square configuration...');
-
-    const config = {
-      hasAccessToken: !!process.env.SQUARE_ACCESS_TOKEN,
-      tokenPrefix: process.env.SQUARE_ACCESS_TOKEN
-        ? `${process.env.SQUARE_ACCESS_TOKEN.substring(0, 20)}...`
-        : 'NOT SET',
-      environment: process.env.NODE_ENV,
-      isSandbox: process.env.SQUARE_ACCESS_TOKEN?.includes('sandbox-'),
-      isProduction: process.env.SQUARE_ACCESS_TOKEN?.startsWith('sq0atp-'),
-    };
-
-    console.log('📋 Configuration:', config);
-
-    res.json({
-      success: true,
-      message: 'Square configuration check',
-      config,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('❌ Debug error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
 router.use('/process', authenticate, (req, res, next) => {
   // Only admins can process refunds
   if (req.user.role !== 'admin') {
@@ -570,7 +534,7 @@ async function sendRefundConfirmation(payment, refund) {
         <p>The refund should appear on your original payment method within 5-10 business days.</p>
         
         <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-          <p>If you have any questions, please contact us at bcpartizan@proton.me</p>
+          <p>If you have any questions, please contact us at partizanhoops@proton.me</p>
         </div>
       </div>
     `,

@@ -353,7 +353,7 @@ router.post('/email-receipt', async (req, res) => {
             
             <div class="info-box">
               <h4>💡 Need Help?</h4>
-              <p>If you have any questions about your purchase, please contact our support team at bcpartizan@proton.me</p>
+              <p>If you have any questions about your purchase, please contact our support team at partizanhoops@proton.me</p>
             </div>
             
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
@@ -368,7 +368,7 @@ router.post('/email-receipt', async (req, res) => {
           
           <div class="footer">
             <p>© ${new Date().getFullYear()} Partizan Basketball. All rights reserved.</p>
-            <p>bcpartizan@proton.me</p>
+            <p>partizanhoops@proton.me</p>
           </div>
         </div>
       </body>

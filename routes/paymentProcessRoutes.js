@@ -1287,14 +1287,14 @@ router.post(
             <li>Practice schedules will be shared via email and the team portal</li>
           </ul>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">Welcome to the Partizan family! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
           <p style="margin: 0;">Partizan Basketball<br>
-          bcpartizan@proton.me</p>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `,
@@ -1630,7 +1630,7 @@ router.post('/process', authenticate, async (req, res) => {
                 </ul>
               </div>
               
-              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bcpartizan@proton.me</p>
+              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
               
               <p style="font-size: 16px; font-weight: bold;">Thank you for choosing Partizan Basketball! 🏀</p>
             </div>

@@ -325,7 +325,7 @@ router.post(
                   </p>
                 </div>
                 
-                <p>If you have any questions or need assistance, please contact us at <a href="mailto:bcpartizan@proton.me">bcpartizan@proton.me</a></p>
+                <p>If you have any questions or need assistance, please contact us at <a href="mailto:partizanhoops@proton.me">partizanhoops@proton.me</a></p>
                 
                 <p style="text-align: center; margin-top: 30px;">
                   <strong>Welcome to the Partizan family! 🏀</strong>
@@ -335,7 +335,7 @@ router.post(
             
             <div style="text-align: center; margin-top: 30px; color: #666; font-size: 14px;">
               <p>Partizan Basketball<br>
-              bcpartizan@proton.me</p>
+              partizanhoops@proton.me</p>
             </div>
           </div>
         `;
@@ -1996,7 +1996,7 @@ router.post('/contact', async (req, res) => {
 
   try {
     await sendEmail({
-      to: 'bcpartizan@proton.me',
+      to: 'partizanhoops@proton.me',
       subject: subject || 'New Inquiry from Contact Form',
       html,
     });
