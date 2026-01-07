@@ -1,4 +1,4 @@
-// registrationController.js
+// controllers/registrationController.js
 const SeasonEvent = require('../models/SeasonEvent');
 const RegistrationFormConfig = require('../models/RegistrationFormConfig');
 
@@ -47,16 +47,32 @@ exports.deleteSeasonEvent = async (req, res) => {
 // Form Configurations
 exports.updateFormConfig = async (req, res) => {
   try {
-    const { season, year, config } = req.body;
+    const { eventId, season, year, config } = req.body;
 
     // Validate required fields
-    if (!season || !year) {
-      return res.status(400).json({ error: 'Season and year are required' });
+    if (!eventId) {
+      return res.status(400).json({ error: 'eventId is required' });
     }
 
+    // Get season event details
+    const seasonEvent = await SeasonEvent.findOne({ eventId });
+    if (!seasonEvent) {
+      return res.status(404).json({ error: 'Season event not found' });
+    }
+
+    // Use season event data
+    const seasonName = season || seasonEvent.season;
+    const seasonYear = year || seasonEvent.year;
+
+    // Update or create form config
     const formConfig = await RegistrationFormConfig.findOneAndUpdate(
-      { season, year },
-      config,
+      { eventId },
+      {
+        eventId,
+        season: seasonName,
+        year: seasonYear,
+        ...config,
+      },
       { upsert: true, new: true, runValidators: true }
     );
 
@@ -76,20 +92,12 @@ exports.getFormConfigs = async (req, res) => {
     );
 
     const configMap = {};
-
     configs.forEach((config) => {
-      const key = `${config.season}-${config.year}`;
-      console.log(`🔑 Creating key: ${key}`, {
-        season: config.season,
-        year: config.year,
-        packages: config.pricing?.packages?.length || 0,
-        packagesData: config.pricing?.packages,
-      });
+      const key = config.eventId || `${config.season}-${config.year}`;
 
-      // Convert to plain object and ensure packages are properly formatted
+      // Ensuring the pricing packages are properly formatted
       const configObj = config.toObject ? config.toObject() : config;
 
-      // Ensure pricing packages exist and are properly formatted
       if (!configObj.pricing) {
         configObj.pricing = { basePrice: 0, packages: [] };
       }
@@ -97,7 +105,6 @@ exports.getFormConfigs = async (req, res) => {
         configObj.pricing.packages = [];
       }
 
-      // Ensure each package has required fields
       configObj.pricing.packages = configObj.pricing.packages.map((pkg) => ({
         id: pkg.id || pkg._id?.toString(),
         name: pkg.name || '',
@@ -105,12 +112,6 @@ exports.getFormConfigs = async (req, res) => {
         description: pkg.description || '',
         ...pkg,
       }));
-
-      console.log(`✅ Final config for ${key}:`, {
-        isActive: configObj.isActive,
-        packagesCount: configObj.pricing.packages.length,
-        packages: configObj.pricing.packages,
-      });
 
       configMap[key] = configObj;
     });
@@ -123,6 +124,35 @@ exports.getFormConfigs = async (req, res) => {
   } catch (error) {
     console.error('❌ Get form configs error:', error);
     res.status(500).json({ error: 'Failed to fetch form configurations' });
+  }
+};
+
+// A function to get active season events with configs
+exports.getActiveSeasonEvents = async (req, res) => {
+  try {
+    // Get all active season events
+    const seasonEvents = await SeasonEvent.find({ registrationOpen: true });
+
+    // Get form configs for these events
+    const eventIds = seasonEvents.map((event) => event.eventId);
+    const formConfigs = await RegistrationFormConfig.find({
+      eventId: { $in: eventIds },
+      isActive: true,
+    });
+
+    // Combine data
+    const activeEvents = seasonEvents.map((event) => {
+      const config = formConfigs.find((cfg) => cfg.eventId === event.eventId);
+      return {
+        ...event.toObject(),
+        formConfig: config || null,
+      };
+    });
+
+    res.json(activeEvents);
+  } catch (error) {
+    console.error('Get active season events error:', error);
+    res.status(500).json({ error: 'Failed to fetch active season events' });
   }
 };
 

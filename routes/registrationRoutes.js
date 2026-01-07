@@ -24,6 +24,9 @@ const {
   deleteTryoutConfig,
 } = require('../controllers/tryoutConfigController');
 const { authenticate, isAdmin } = require('../utils/auth');
+const SeasonEvent = require('../models/SeasonEvent');
+const TryoutConfig = require('../models/TryoutConfig');
+const RegistrationFormConfig = require('../models/RegistrationFormConfig');
 
 const router = express.Router();
 
@@ -145,6 +148,46 @@ router.post('/tournaments/create', authenticate, async (req, res) => {
       error: 'Failed to create tournament',
       details: error.message,
     });
+  }
+});
+
+router.get('/active-registrations', async (req, res) => {
+  try {
+    // Get all active season events
+    const seasonEvents = await SeasonEvent.find({ registrationOpen: true });
+
+    // Get form configs for training
+    const formConfigs = await RegistrationFormConfig.find({
+      eventId: { $in: seasonEvents.map((e) => e.eventId) },
+      isActive: true,
+    });
+
+    // Get tournament configs
+    const tournamentConfigs = await TournamentConfig.find({ isActive: true });
+
+    // Get tryout configs
+    const tryoutConfigs = await TryoutConfig.find({ isActive: true });
+
+    // Combine all active registrations
+    const activeRegistrations = {
+      training: formConfigs.map((config) => ({
+        ...config.toObject(),
+        seasonEvent: seasonEvents.find((e) => e.eventId === config.eventId),
+      })),
+      tournaments: tournamentConfigs,
+      tryouts: tryoutConfigs,
+      playerRegistration: {
+        isActive: true, // Player registration is always active
+        season: 'Player Account Setup',
+        year: new Date().getFullYear(),
+        description: 'Add players to your account',
+      },
+    };
+
+    res.json(activeRegistrations);
+  } catch (error) {
+    console.error('Error fetching active registrations:', error);
+    res.status(500).json({ error: 'Failed to fetch active registrations' });
   }
 });
 

@@ -1,3 +1,4 @@
+// models/RegistrationFormConfig.js
 const mongoose = require('mongoose');
 
 const PricingPackageSchema = new mongoose.Schema({
@@ -9,6 +10,13 @@ const PricingPackageSchema = new mongoose.Schema({
 
 const RegistrationFormConfigSchema = new mongoose.Schema(
   {
+    // Reference the SeasonEvent by eventId
+    eventId: {
+      type: String,
+      required: true,
+      ref: 'SeasonEvent',
+    },
+    // Backward compatibility and easier querying
     season: { type: String, required: true },
     year: { type: Number, required: true },
     isActive: { type: Boolean, default: false },
@@ -24,8 +32,10 @@ const RegistrationFormConfigSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index
-RegistrationFormConfigSchema.index({ season: 1, year: 1 }, { unique: true });
+// Unique index on eventId
+RegistrationFormConfigSchema.index({ eventId: 1 }, { unique: true });
+// Season-year index for backward compatibility
+RegistrationFormConfigSchema.index({ season: 1, year: 1 }, { unique: false });
 
 module.exports = mongoose.model(
   'RegistrationFormConfig',
