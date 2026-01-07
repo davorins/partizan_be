@@ -13,6 +13,7 @@ const Notification = require('../models/Notification');
 const TournamentConfig = require('../models/TournamentConfig');
 const RegistrationFormConfig = require('../models/RegistrationFormConfig');
 const SeasonEvent = require('../models/SeasonEvent');
+const TryoutConfig = require('../models/TryoutConfig');
 const {
   comparePasswords,
   hashPassword,
@@ -90,34 +91,35 @@ const generateTryoutId = async (season, year) => {
   console.log('🔍 generateTryoutId called with:', { season, year });
 
   try {
-    const SeasonEvent = require('../models/SeasonEvent');
+    // Check if there's a tryout config for this season
+    const tryoutConfig = await TryoutConfig.findOne({
+      season: { $regex: new RegExp(season, 'i') },
+      tryoutYear: parseInt(year),
+      isActive: true,
+    });
 
+    if (tryoutConfig) {
+      console.log('✅ Found active tryout config:', tryoutConfig.tryoutName);
+      return tryoutConfig.eventId;
+    }
+
+    // Fallback: find season event
+    const SeasonEvent = require('../models/SeasonEvent');
     const seasonEvent = await SeasonEvent.findOne({
-      season: season.trim(),
+      season: { $regex: new RegExp(season, 'i') },
       year: parseInt(year),
     });
 
     if (seasonEvent && seasonEvent.eventId) {
       console.log('✅ Found season event with eventId:', seasonEvent.eventId);
-      return seasonEvent.eventId; // Returns "partizan-winter-break-camp-2026"
+      return seasonEvent.eventId;
     }
 
-    console.log('⚠️ No season event found, using fallback');
-
-    // Keep your existing fallback logic
-    const seasonName = season.toLowerCase().trim();
-
-    if (seasonName.includes('Partizan tryout') && year === 2025) {
-      return 'partizan-tryout';
-    }
-    if (seasonName.includes('fall training') && year === 2025) {
-      return 'falltraining-2025';
-    }
-
-    return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}-tryout-default`;
+    console.log('⚠️ No tryout or season event found, using fallback');
+    return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}`;
   } catch (error) {
     console.error('❌ Error in generateTryoutId:', error);
-    return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}-tryout-default`;
+    return `${season.toLowerCase().replace(/\s+/g, '-')}-${year}`;
   }
 };
 

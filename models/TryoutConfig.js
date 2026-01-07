@@ -1,3 +1,4 @@
+// models/TryoutConfig.js
 const mongoose = require('mongoose');
 
 const TryoutConfigSchema = new mongoose.Schema(
@@ -6,6 +7,10 @@ const TryoutConfigSchema = new mongoose.Schema(
     tryoutName: { type: String, required: true, unique: true },
     tryoutYear: { type: Number, required: true },
     displayName: { type: String },
+
+    // Link to season event
+    eventId: { type: String, required: true },
+    season: { type: String, required: true },
 
     // Tryout details
     registrationDeadline: { type: Date },

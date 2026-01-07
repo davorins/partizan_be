@@ -20,15 +20,23 @@ exports.updateTryoutConfig = async (req, res) => {
     const config = req.body;
     const originalTryoutName = config.originalTryoutName || config.tryoutName;
 
-    console.log('🏀 Updating tryout config:', {
+    console.log('🎯 Updating tryout config:', {
       config,
       originalTryoutName,
     });
 
-    // Validate required fields
+    // Validate required fields including season link
     if (!config.tryoutName || !config.tryoutYear) {
       return res.status(400).json({
         error: 'Tryout name and year are required',
+      });
+    }
+
+    // Validate season link
+    if (!config.eventId || !config.season) {
+      return res.status(400).json({
+        error:
+          'Tryout must be linked to a season (eventId and season are required)',
       });
     }
 
@@ -85,6 +93,30 @@ exports.updateTryoutConfig = async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Error updating tryout config:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get tryouts by season
+exports.getTryoutsBySeason = async (req, res) => {
+  try {
+    const { eventId, season, year } = req.query;
+
+    let query = {};
+    if (eventId) {
+      query.eventId = eventId;
+    }
+    if (season) {
+      query.season = season;
+    }
+    if (year) {
+      query.tryoutYear = parseInt(year);
+    }
+
+    const tryouts = await TryoutConfig.find(query).sort({ tryoutYear: -1 });
+    res.json(tryouts);
+  } catch (error) {
+    console.error('Error getting tryouts by season:', error);
     res.status(500).json({ error: error.message });
   }
 };
