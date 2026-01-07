@@ -4380,7 +4380,7 @@ router.post(
       await parent.save();
 
       // Send verification email
-      const verificationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+      const verificationLink = `${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/verify-email?token=${verificationToken}`;
 
       const emailHtml = `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px;">
