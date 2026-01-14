@@ -18,6 +18,7 @@ const TryoutConfigSchema = new mongoose.Schema(
     locations: [{ type: String }],
     divisions: [{ type: String }],
     ageGroups: [{ type: String }],
+    description: { type: String, default: '' },
 
     // Requirements
     requiresPayment: { type: Boolean, default: true },

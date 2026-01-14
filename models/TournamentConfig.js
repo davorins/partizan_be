@@ -13,6 +13,7 @@ const TournamentConfigSchema = new mongoose.Schema(
     tournamentDates: [{ type: Date }],
     locations: [{ type: String }],
     divisions: [{ type: String }],
+    description: { type: String, default: '' },
 
     // Requirements
     requiresRoster: { type: Boolean, default: true },

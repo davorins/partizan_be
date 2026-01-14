@@ -1,4 +1,4 @@
-// index.js (or your main server file)
+// index.js
 const dotenv = require('dotenv');
 dotenv.config({ path: './.env' });
 

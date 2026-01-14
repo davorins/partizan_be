@@ -22,6 +22,7 @@ const RegistrationFormConfigSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: false },
     requiresPayment: { type: Boolean, default: true },
     requiresQualification: { type: Boolean, default: false },
+    description: { type: String, default: '' },
     pricing: {
       basePrice: { type: Number, default: 0 },
       packages: [PricingPackageSchema],
