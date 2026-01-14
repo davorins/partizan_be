@@ -1,3 +1,4 @@
+// controllers/tryoutConfigController.js
 const TryoutConfig = require('../models/TryoutConfig');
 
 // Get all tryout configs
@@ -14,7 +15,7 @@ exports.getTryoutConfigs = async (req, res) => {
   }
 };
 
-// Create or update tryout config
+// Create or update tryout config - FIXED VERSION
 exports.updateTryoutConfig = async (req, res) => {
   try {
     const config = req.body;
@@ -22,6 +23,8 @@ exports.updateTryoutConfig = async (req, res) => {
 
     console.log('🎯 Updating tryout config:', {
       config,
+      description: config.description, // Debug
+      descriptionLength: config.description?.length, // Debug
       originalTryoutName,
     });
 
@@ -61,16 +64,45 @@ exports.updateTryoutConfig = async (req, res) => {
         }
       }
 
-      // Remove originalTryoutName from config before saving
-      const { originalTryoutName: _, ...configToSave } = config;
+      const { originalTryoutName: omit, ...updates } = config;
+
+      // Convert string dates to Date objects
+      if (updates.registrationDeadline) {
+        updates.registrationDeadline = new Date(updates.registrationDeadline);
+      }
+      if (updates.paymentDeadline) {
+        updates.paymentDeadline = new Date(updates.paymentDeadline);
+      }
+      if (updates.tryoutDates && Array.isArray(updates.tryoutDates)) {
+        updates.tryoutDates = updates.tryoutDates.map((date) => new Date(date));
+      }
+
+      // ✅ Ensure description is set (even if empty string)
+      updates.description = updates.description || '';
+
+      console.log('🔄 Applying updates to existing config:', {
+        updates,
+        description: updates.description,
+        descriptionLength: updates.description.length,
+      });
 
       // Update the document
-      Object.assign(existingConfig, configToSave);
-      existingConfig.updatedAt = new Date();
-      await existingConfig.save();
+      Object.keys(updates).forEach((key) => {
+        existingConfig[key] = updates[key];
+      });
 
-      console.log('✅ Tryout config updated:', existingConfig);
-      res.json(existingConfig);
+      existingConfig.updatedAt = new Date();
+
+      const savedConfig = await existingConfig.save();
+
+      console.log('✅ Tryout config updated:', {
+        id: savedConfig._id,
+        tryoutName: savedConfig.tryoutName,
+        description: savedConfig.description,
+        descriptionLength: savedConfig.description?.length,
+      });
+
+      res.json(savedConfig);
     } else {
       // Create new config
       const nameExists = await TryoutConfig.findOne({
@@ -83,17 +115,56 @@ exports.updateTryoutConfig = async (req, res) => {
         });
       }
 
-      // Remove originalTryoutName from config before saving
-      const { originalTryoutName: _, ...configToSave } = config;
+      // ✅ Create new config with all fields
+      const newConfigData = { ...config };
+      delete newConfigData.originalTryoutName;
 
-      const newConfig = new TryoutConfig(configToSave);
-      await newConfig.save();
-      console.log('✅ Tryout config created:', newConfig);
-      res.json(newConfig);
+      // Convert string dates to Date objects
+      if (newConfigData.registrationDeadline) {
+        newConfigData.registrationDeadline = new Date(
+          newConfigData.registrationDeadline
+        );
+      }
+      if (newConfigData.paymentDeadline) {
+        newConfigData.paymentDeadline = new Date(newConfigData.paymentDeadline);
+      }
+      if (
+        newConfigData.tryoutDates &&
+        Array.isArray(newConfigData.tryoutDates)
+      ) {
+        newConfigData.tryoutDates = newConfigData.tryoutDates.map(
+          (date) => new Date(date)
+        );
+      }
+
+      // ✅ Ensure description is set
+      newConfigData.description = newConfigData.description || '';
+
+      console.log('🆕 Creating new config:', {
+        newConfigData,
+        description: newConfigData.description,
+        descriptionLength: newConfigData.description.length,
+      });
+
+      const newConfig = new TryoutConfig(newConfigData);
+      const savedConfig = await newConfig.save();
+
+      console.log('✅ Tryout config created:', {
+        id: savedConfig._id,
+        tryoutName: savedConfig.tryoutName,
+        description: savedConfig.description,
+        descriptionLength: savedConfig.description?.length,
+      });
+
+      res.json(savedConfig);
     }
   } catch (error) {
     console.error('❌ Error updating tryout config:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error details:', error.message);
+    res.status(500).json({
+      error: 'Failed to save tryout configuration',
+      details: error.message,
+    });
   }
 };
 
@@ -128,7 +199,11 @@ exports.getTryoutConfig = async (req, res) => {
     const config = await TryoutConfig.findOne({ tryoutName });
 
     if (config) {
-      console.log('✅ Found tryout config:', config);
+      console.log('✅ Found tryout config:', {
+        tryoutName: config.tryoutName,
+        description: config.description,
+        descriptionLength: config.description?.length,
+      });
       res.json(config);
     } else {
       console.log('📭 No tryout config found for:', tryoutName);
@@ -154,6 +229,32 @@ exports.deleteTryoutConfig = async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Error deleting tryout config:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ✅ Get tryout config by eventId
+exports.getTryoutConfigByEventId = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const config = await TryoutConfig.findOne({ eventId });
+
+    if (config) {
+      console.log('✅ Found tryout config by eventId:', {
+        eventId,
+        tryoutName: config.tryoutName,
+        description: config.description,
+        descriptionLength: config.description?.length,
+      });
+      res.json(config);
+    } else {
+      console.log('📭 No tryout config found for eventId:', eventId);
+      res
+        .status(404)
+        .json({ message: 'Tryout configuration not found for this event' });
+    }
+  } catch (error) {
+    console.error('❌ Error getting tryout config by eventId:', error);
     res.status(500).json({ error: error.message });
   }
 };
