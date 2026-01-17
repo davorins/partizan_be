@@ -91,19 +91,7 @@ const generateTryoutId = async (season, year) => {
   console.log('🔍 generateTryoutId called with:', { season, year });
 
   try {
-    // Check if there's a tryout config for this season
-    const tryoutConfig = await TryoutConfig.findOne({
-      season: { $regex: new RegExp(season, 'i') },
-      tryoutYear: parseInt(year),
-      isActive: true,
-    });
-
-    if (tryoutConfig) {
-      console.log('✅ Found active tryout config:', tryoutConfig.tryoutName);
-      return tryoutConfig.eventId;
-    }
-
-    // Fallback: find season event
+    // First check SeasonEvent (this seems to be where ObjectId is coming from)
     const SeasonEvent = require('../models/SeasonEvent');
     const seasonEvent = await SeasonEvent.findOne({
       season: { $regex: new RegExp(season, 'i') },
@@ -113,6 +101,18 @@ const generateTryoutId = async (season, year) => {
     if (seasonEvent && seasonEvent.eventId) {
       console.log('✅ Found season event with eventId:', seasonEvent.eventId);
       return seasonEvent.eventId;
+    }
+
+    // Then check TryoutConfig
+    const tryoutConfig = await TryoutConfig.findOne({
+      season: { $regex: new RegExp(season, 'i') },
+      tryoutYear: parseInt(year),
+      isActive: true,
+    });
+
+    if (tryoutConfig && tryoutConfig.eventId) {
+      console.log('✅ Found tryout config with eventId:', tryoutConfig.eventId);
+      return tryoutConfig.eventId;
     }
 
     console.log('⚠️ No tryout or season event found, using fallback');
@@ -599,6 +599,31 @@ router.post(
         { session }
       );
 
+      // ✅ DUPLICATE CHECK
+      if (!skipSeasonRegistration && season) {
+        const existingRegistration = await Registration.findOne({
+          player: player._id,
+          season: season.trim(),
+          year: registrationYear,
+          tryoutId: finalTryoutId,
+        }).session(session);
+
+        if (existingRegistration) {
+          await session.abortTransaction();
+          console.log('❌ Duplicate registration attempt:', {
+            playerId: player._id,
+            season,
+            year: registrationYear,
+            tryoutId: finalTryoutId,
+            existingRegistrationId: existingRegistration._id,
+          });
+          return res.status(400).json({
+            error: `Player ${fullName} is already registered for ${season} ${registrationYear}`,
+            duplicateRegistrationId: existingRegistration._id,
+          });
+        }
+      }
+
       let registration = null;
 
       // Create registration document if NOT skipping season registration
@@ -927,6 +952,31 @@ router.post(
       // Update parent with player IDs
       parent.players = savedPlayers.map((p) => p._id);
       await parent.save({ session });
+
+      for (const playerDoc of playerDocs) {
+        const existingRegistration = await Registration.findOne({
+          player: playerDoc._id,
+          season: playerDoc.season,
+          year: playerDoc.registrationYear,
+          tryoutId: playerDoc.tryoutId,
+        }).session(session);
+
+        if (existingRegistration) {
+          await session.abortTransaction();
+          console.log('❌ Duplicate registration in basketball-camp:', {
+            playerId: playerDoc._id,
+            playerName: playerDoc.fullName,
+            season: playerDoc.season,
+            year: playerDoc.registrationYear,
+            tryoutId: playerDoc.tryoutId,
+          });
+          return res.status(400).json({
+            success: false,
+            error: `Player "${playerDoc.fullName}" is already registered for ${playerDoc.season} ${playerDoc.registrationYear}`,
+            duplicatePlayerId: playerDoc._id,
+          });
+        }
+      }
 
       // Create registration documents
       const registrationDocs = playerDocs.map((playerDoc) => ({
@@ -2829,6 +2879,33 @@ router.patch(
             .json({ success: false, error: 'Player not found' });
         }
 
+        const existingRegistration = await Registration.findOne({
+          player: playerId,
+          season,
+          year: parseInt(year),
+          tryoutId: finalTryoutId,
+        }).session(session);
+
+        if (existingRegistration) {
+          await session.abortTransaction();
+          console.log('❌ Duplicate season update attempt:', {
+            playerId,
+            season,
+            year,
+            tryoutId: finalTryoutId,
+            existingRegistrationId: existingRegistration._id,
+          });
+          return res.status(400).json({
+            success: false,
+            error: 'Player already registered for this season/tryout',
+            existingRegistration: {
+              id: existingRegistration._id,
+              paymentStatus: existingRegistration.paymentStatus,
+              createdAt: existingRegistration.createdAt,
+            },
+          });
+        }
+
         const seasonIndex = player.seasons.findIndex(
           (s) =>
             s.season === season && s.year === year && s.tryoutId === tryoutId
@@ -3197,7 +3274,7 @@ router.post(
 
         parent = new Parent({
           email: normalizedEmail,
-          password: rawPassword, // Store plain-text password to match /register/basketball-camp
+          password: rawPassword,
           fullName: fullName.trim(),
           phone: phone.replace(/\D/g, ''),
           address: {

@@ -72,7 +72,7 @@ if (mongoose.models.Registration) {
     }
   );
 
-  // FIXED: Unique index for player registrations (only when player exists and is not null)
+  // Unique index for player registrations (only when player exists and is not null)
   registrationSchema.index(
     { player: 1, season: 1, year: 1, tryoutId: 1 },
     {
@@ -81,6 +81,7 @@ if (mongoose.models.Registration) {
         $and: [
           { player: { $exists: true, $ne: null } },
           { season: { $exists: true, $ne: null } },
+          { year: { $exists: true, $ne: null } },
           { tryoutId: { $exists: true, $ne: null } },
         ],
       },
