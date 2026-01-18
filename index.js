@@ -41,6 +41,7 @@ const teamsRoutes = require('./routes/teams');
 const communicationPreferencesRouter = require('./routes/communicationPreferences');
 const pageBuilder = require('./routes/pageBuilderRoutes');
 const initCalendarEvents = require('./scripts/initCalendarEvents');
+const healthCheck = require('./health');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -142,6 +143,7 @@ app.use('/api', tournamentPublicRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/page-builder', pageBuilder);
+app.get('/api/health', healthCheck);
 
 // Connect to MongoDB
 mongoose
@@ -152,56 +154,40 @@ mongoose
     process.exit(1);
   });
 
-// Initialize calendar events after MongoDB connection
-let calendarInitialized = false;
-
-mongoose.connection.once('open', async () => {
+mongoose.connection.once('open', () => {
   console.log('📊 MongoDB connection ready');
 
-  try {
-    // Check if we already have system events for 2026
-    const existingSystemEvents = await mongoose.connection.db
-      .collection('events')
-      .countDocuments({
-        source: 'system',
-        isPredefined: true,
-        start: {
-          $gte: new Date('2026-01-01'),
-          $lte: new Date('2026-12-31'),
-        },
-      });
+  // DEFER calendar initialization so server can respond immediately
+  setTimeout(async () => {
+    try {
+      console.log('⏳ Starting deferred calendar initialization...');
 
-    if (existingSystemEvents === 0) {
-      console.log('📅 No system events found for 2026. Auto-populating...');
-      const result = await initCalendarEvents();
-      calendarInitialized = true;
-      console.log(
-        `🎉 Calendar initialization complete! Created ${result.createdCount} events.`
-      );
-    } else {
-      console.log(
-        `📅 Found ${existingSystemEvents} system events for 2026. Skipping auto-population.`
-      );
-      calendarInitialized = true;
+      const existingSystemEvents = await mongoose.connection.db
+        .collection('events')
+        .countDocuments({
+          source: 'system',
+          isPredefined: true,
+          start: {
+            $gte: new Date('2026-01-01'),
+            $lte: new Date('2026-12-31'),
+          },
+        });
+
+      if (existingSystemEvents === 0) {
+        console.log('📅 No system events found for 2026. Auto-populating...');
+        const result = await initCalendarEvents();
+        console.log(
+          `🎉 Calendar initialization complete! Created ${result.createdCount} events.`
+        );
+      } else {
+        console.log(
+          `📅 Found ${existingSystemEvents} system events for 2026. Skipping.`
+        );
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to initialize calendar events:', error.message);
     }
-  } catch (error) {
-    console.error('⚠️ Failed to initialize calendar events:', error.message);
-    console.log(
-      'ℹ️ Calendar events will need to be populated manually via API endpoint.'
-    );
-  }
-});
-
-// Update health endpoint to include calendar status
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    database:
-      mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    calendarInitialized: calendarInitialized,
-    version: '1.0.0',
-  });
+  }, 5000);
 });
 
 // Backend route for fetching player data
