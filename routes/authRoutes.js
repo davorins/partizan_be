@@ -424,6 +424,7 @@ router.post(
 );
 
 // Register a new player
+// Register a new player
 router.post(
   '/players/register',
   authenticate,
@@ -599,49 +600,55 @@ router.post(
         { session }
       );
 
-      // ✅ DUPLICATE CHECK
-      if (!skipSeasonRegistration && season) {
-        const existingRegistration = await Registration.findOne({
-          player: player._id,
-          season: season.trim(),
-          year: registrationYear,
-          tryoutId: finalTryoutId,
-        }).session(session);
-
-        if (existingRegistration) {
-          await session.abortTransaction();
-          console.log('❌ Duplicate registration attempt:', {
-            playerId: player._id,
-            season,
-            year: registrationYear,
-            tryoutId: finalTryoutId,
-            existingRegistrationId: existingRegistration._id,
-          });
-          return res.status(400).json({
-            error: `Player ${fullName} is already registered for ${season} ${registrationYear}`,
-            duplicateRegistrationId: existingRegistration._id,
-          });
-        }
-      }
-
+      // ✅ FIXED REGISTRATION CREATION - No duplicate check needed because we use upsert
       let registration = null;
 
-      // Create registration document if NOT skipping season registration
+      // Create or update registration document if NOT skipping season registration
       if (!skipSeasonRegistration && season) {
-        registration = new Registration({
-          player: player._id,
-          parent: parentId,
-          season: season.trim(),
-          year: registrationYear,
-          tryoutId: finalTryoutId,
-          paymentStatus: 'pending',
-          paymentComplete: false,
-          registrationComplete: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+        // Use upsert to ensure only one registration exists
+        registration = await Registration.findOneAndUpdate(
+          {
+            player: player._id,
+            parent: parentId,
+            season: season.trim(),
+            year: registrationYear,
+            tryoutId: finalTryoutId,
+          },
+          {
+            $setOnInsert: {
+              player: player._id,
+              parent: parentId,
+              season: season.trim(),
+              year: registrationYear,
+              tryoutId: finalTryoutId,
+              registrationComplete: true,
+              createdAt: new Date(),
+            },
+            $set: {
+              paymentStatus: 'pending',
+              paymentComplete: false,
+              updatedAt: new Date(),
+            },
+          },
+          {
+            upsert: true,
+            new: true,
+            session,
+            runValidators: true,
+          }
+        );
 
-        await registration.save({ session });
+        console.log('✅ Registration created/updated:', {
+          registrationId: registration._id,
+          playerId: player._id,
+          playerName: player.fullName,
+          season,
+          year: registrationYear,
+          paymentStatus: registration.paymentStatus,
+          isNew:
+            !registration.createdAt ||
+            registration.createdAt === registration.updatedAt,
+        });
       }
 
       await session.commitTransaction();
@@ -688,6 +695,7 @@ router.post(
         year: registrationYear,
         hasSeasonRegistration: !skipSeasonRegistration && season,
         paymentStatus: player.paymentStatus,
+        registrationId: registration ? registration._id : null,
       });
 
       // Build response object
@@ -748,6 +756,7 @@ router.post(
   }
 );
 
+// Register for basketball camp
 // Register for basketball camp
 router.post(
   '/register/basketball-camp',
@@ -953,48 +962,55 @@ router.post(
       parent.players = savedPlayers.map((p) => p._id);
       await parent.save({ session });
 
-      for (const playerDoc of playerDocs) {
-        const existingRegistration = await Registration.findOne({
-          player: playerDoc._id,
-          season: playerDoc.season,
-          year: playerDoc.registrationYear,
-          tryoutId: playerDoc.tryoutId,
-        }).session(session);
+      // ✅ FIXED REGISTRATION CREATION - Using upsert to prevent duplicates
+      const registrationDocs = [];
 
-        if (existingRegistration) {
-          await session.abortTransaction();
-          console.log('❌ Duplicate registration in basketball-camp:', {
-            playerId: playerDoc._id,
-            playerName: playerDoc.fullName,
+      for (const playerDoc of playerDocs) {
+        // Use upsert to ensure only one registration per player/season/year/tryout
+        const registration = await Registration.findOneAndUpdate(
+          {
+            player: playerDoc._id,
+            parent: parent._id,
             season: playerDoc.season,
             year: playerDoc.registrationYear,
             tryoutId: playerDoc.tryoutId,
-          });
-          return res.status(400).json({
-            success: false,
-            error: `Player "${playerDoc.fullName}" is already registered for ${playerDoc.season} ${playerDoc.registrationYear}`,
-            duplicatePlayerId: playerDoc._id,
-          });
-        }
+          },
+          {
+            $setOnInsert: {
+              player: playerDoc._id,
+              parent: parent._id,
+              season: playerDoc.season,
+              year: playerDoc.registrationYear,
+              tryoutId: playerDoc.tryoutId,
+              registrationComplete: true,
+              createdAt: new Date(),
+            },
+            $set: {
+              paymentStatus: 'pending',
+              paymentComplete: false,
+              updatedAt: new Date(),
+            },
+          },
+          {
+            upsert: true,
+            new: true,
+            session,
+            runValidators: true,
+          }
+        );
+
+        registrationDocs.push(registration);
+        console.log('✅ Registration created/updated for basketball camp:', {
+          registrationId: registration._id,
+          playerId: playerDoc._id,
+          playerName: playerDoc.fullName,
+          season: playerDoc.season,
+          year: playerDoc.registrationYear,
+          isNew:
+            !registration.createdAt ||
+            registration.createdAt === registration.updatedAt,
+        });
       }
-
-      // Create registration documents
-      const registrationDocs = playerDocs.map((playerDoc) => ({
-        player: playerDoc._id,
-        parent: parent._id,
-        season: playerDoc.season,
-        year: playerDoc.registrationYear,
-        tryoutId: playerDoc.tryoutId,
-        paymentStatus: 'pending',
-        paymentComplete: false,
-        registrationComplete: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-
-      const registrations = await Registration.insertMany(registrationDocs, {
-        session,
-      });
 
       await session.commitTransaction();
 
@@ -1045,7 +1061,7 @@ router.post(
           paymentStatus: p.paymentStatus,
           tryoutId: p.seasons[0]?.tryoutId || null,
         })),
-        registrations: registrations.map((r) => ({
+        registrations: registrationDocs.map((r) => ({
           id: r._id,
           playerId: r.player,
           season: r.season,
@@ -2336,7 +2352,7 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
       { session }
     );
 
-    // Update Registration documents
+    // ✅ FIXED: Update the EXISTING registration documents (same ones created earlier)
     const registrationsUpdate = await Registration.updateMany(
       {
         player: { $in: playerIds },
@@ -2350,10 +2366,11 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
           paymentStatus,
           paymentComplete: paymentStatus === 'paid',
           paymentDate: paymentStatus === 'paid' ? new Date() : undefined,
-          paymentId,
+          paymentId, // Add the payment reference to same registration
           amountPaid: amountPaid ? amountPaid / playerIds.length : undefined,
           cardLast4,
           cardBrand,
+          updatedAt: new Date(),
         },
       },
       { session }
@@ -2408,6 +2425,8 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
       playersUpdated: playersUpdate.modifiedCount,
       registrationsUpdated: registrationsUpdate.modifiedCount,
       parentId,
+      // Show which registrations were updated
+      updatedRegistrationIds: allRegistrations.map((r) => r._id),
     });
 
     res.json({
@@ -2415,6 +2434,8 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
       playersUpdated: playersUpdate.modifiedCount,
       registrationsUpdated: registrationsUpdate.modifiedCount,
       parent: parentUpdate,
+      // Return the updated registration IDs so frontend knows which ones
+      updatedRegistrationIds: allRegistrations.map((r) => r._id.toString()),
     });
   } catch (error) {
     await session.abortTransaction();
