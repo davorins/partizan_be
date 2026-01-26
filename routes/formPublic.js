@@ -47,7 +47,7 @@ const upload = multer({
   fileFilter: function (req, file, cb) {
     const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|csv|txt/;
     const extname = allowedTypes.test(
-      path.extname(file.originalname).toLowerCase()
+      path.extname(file.originalname).toLowerCase(),
     );
     const mimetype = allowedTypes.test(file.mimetype);
 
@@ -117,7 +117,7 @@ function extractEmailAndName(form, submissionData, req) {
     (f) =>
       f.type === 'text' &&
       (f.label?.toLowerCase().includes('name') ||
-        f.name?.toLowerCase().includes('name'))
+        f.name?.toLowerCase().includes('name')),
   );
 
   if (nameField) {
@@ -610,8 +610,8 @@ router.get('/embed/:id', async (req, res) => {
             
             if (paymentFields.length > 0) {
               // Square credentials (should come from server-side)
-              const SQUARE_APP_ID = '${process.env.SQUARE_APPLICATION_ID || 'sq0idp-jUCxKnO_i8i7vccQjVj_0g'}';
-              const SQUARE_LOCATION_ID = '${process.env.SQUARE_LOCATION_ID || 'L26Q50FWRCQW5'}';
+              const SQUARE_APP_ID = '${process.env.SQUARE_APPLICATION_ID || 'sq0idp-sKm2lO4I-t5BuziKTaYoGg'}';
+              const SQUARE_LOCATION_ID = '${process.env.SQUARE_LOCATION_ID || 'LHB5B04Q2CQDN'}';
               
               paymentFields.forEach(field => {
                 initializeSquarePayment(
@@ -719,7 +719,7 @@ router.post('/:id/submit', upload.any(), async (req, res) => {
           numValue < field.validation.min
         ) {
           errors.push(
-            `${field.label} must be at least ${field.validation.min}`
+            `${field.label} must be at least ${field.validation.min}`,
           );
         }
         if (
@@ -756,7 +756,7 @@ router.post('/:id/submit', upload.any(), async (req, res) => {
       req.files.forEach((file) => {
         const fieldId = file.fieldname;
         const field = form.fields.find(
-          (f) => f.id === fieldId || f.name === fieldId
+          (f) => f.id === fieldId || f.name === fieldId,
         );
 
         if (field && field.type === 'file') {
@@ -766,7 +766,7 @@ router.post('/:id/submit', upload.any(), async (req, res) => {
             file.size > field.fileConfig.maxSize
           ) {
             throw new Error(
-              `File ${file.originalname} exceeds maximum size of ${field.fileConfig.maxSize} bytes`
+              `File ${file.originalname} exceeds maximum size of ${field.fileConfig.maxSize} bytes`,
             );
           }
 
@@ -839,7 +839,7 @@ router.post('/:id/submit', upload.any(), async (req, res) => {
         quantity = parseInt(req.body[`${paymentField.id}_quantity`]) || 1;
 
         selectedPackage = paymentField.paymentConfig.pricingPackages.find(
-          (pkg) => pkg.name === packageName && pkg.isEnabled
+          (pkg) => pkg.name === packageName && pkg.isEnabled,
         );
 
         if (selectedPackage) {
@@ -848,7 +848,7 @@ router.post('/:id/submit', upload.any(), async (req, res) => {
             quantity > selectedPackage.maxQuantity
           ) {
             paymentErrors.push(
-              `Maximum quantity for ${selectedPackage.name} is ${selectedPackage.maxQuantity}`
+              `Maximum quantity for ${selectedPackage.name} is ${selectedPackage.maxQuantity}`,
             );
           }
           totalAmount = selectedPackage.price * quantity;
@@ -907,7 +907,7 @@ router.post('/:id/submit', upload.any(), async (req, res) => {
                 ? selectedPackage.price
                 : paymentField.paymentConfig?.amount,
             },
-          }
+          },
         );
 
         console.log('Payment result:', paymentResult);
@@ -1092,7 +1092,7 @@ router.post(
         // Use pricing packages
         if (selectedPackage) {
           const selectedPkg = paymentField.paymentConfig.pricingPackages.find(
-            (pkg) => pkg.name === selectedPackage && pkg.isEnabled
+            (pkg) => pkg.name === selectedPackage && pkg.isEnabled,
           );
 
           if (!selectedPkg) {
@@ -1126,10 +1126,10 @@ router.post(
           // Use default package
           const defaultPkg =
             paymentField.paymentConfig.pricingPackages.find(
-              (pkg) => pkg.defaultSelected && pkg.isEnabled
+              (pkg) => pkg.defaultSelected && pkg.isEnabled,
             ) ||
             paymentField.paymentConfig.pricingPackages.find(
-              (pkg) => pkg.isEnabled
+              (pkg) => pkg.isEnabled,
             );
 
           if (defaultPkg) {
@@ -1191,7 +1191,7 @@ router.post(
           quantity: finalQuantity,
           formTitle: form.title,
           fieldLabel: paymentField.label,
-        }
+        },
       );
 
       console.log('Square payment result:', paymentResult);
@@ -1297,7 +1297,7 @@ router.post(
           // Also send notification to form owner(s) if they have email notifications enabled
           if (form.settings?.sendEmail && form.settings?.emailTo?.length > 0) {
             const ownerEmails = form.settings.emailTo.filter(
-              (email) => typeof email === 'string' && email.includes('@')
+              (email) => typeof email === 'string' && email.includes('@'),
             );
 
             if (ownerEmails.length > 0) {
@@ -1324,7 +1324,7 @@ router.post(
               } catch (ownerEmailError) {
                 console.error(
                   'Error sending owner notification email:',
-                  ownerEmailError
+                  ownerEmailError,
                 );
               }
             }
@@ -1332,7 +1332,7 @@ router.post(
         } catch (emailError) {
           console.error(
             'Error sending payment confirmation email:',
-            emailError
+            emailError,
           );
         }
       }
@@ -1360,7 +1360,7 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
 );
 
 // Helper function to process payment without requiring parentId
@@ -1400,7 +1400,7 @@ async function processFormPaymentWithoutParent(token, amount, options = {}) {
 async function sendPaymentConfirmationEmail(form, submission, paymentData) {
   console.log(
     'Would send payment confirmation email to:',
-    submission.userEmail
+    submission.userEmail,
   );
   console.log('Payment amount:', paymentData.amount, paymentData.currency);
   console.log('Transaction ID:', paymentData.transactionId);
@@ -1531,7 +1531,7 @@ function generateFormFieldsHTML(fields) {
                 <option value="${option.value}" ${option.selected ? 'selected' : ''}>
                   ${option.label}
                 </option>
-              `
+              `,
                 )
                 .join('')}
             </select>
@@ -1564,7 +1564,7 @@ function generateFormFieldsHTML(fields) {
                   ${option.label}
                 </label>
               </div>
-            `
+            `,
               )
               .join('')}
             ${helpText}
@@ -1658,7 +1658,7 @@ function generateFormFieldsHTML(fields) {
           const hasPackages = field.paymentConfig?.pricingPackages?.length > 0;
           const enabledPackages =
             field.paymentConfig?.pricingPackages?.filter(
-              (pkg) => pkg.isEnabled
+              (pkg) => pkg.isEnabled,
             ) || [];
           const defaultPackage =
             enabledPackages.find((pkg) => pkg.defaultSelected) ||
@@ -1728,7 +1728,7 @@ function generateFormFieldsHTML(fields) {
             </div>
             ${pkg.maxQuantity ? `<div class="form-text">Maximum: ${pkg.maxQuantity}</div>` : ''}
           </div>
-        `
+        `,
           )
           .join('')}
       </div>
@@ -1841,7 +1841,7 @@ function generateFormFieldsHTML(fields) {
       // Add conditional logic attributes if present
       if (field.conditionalLogic && field.conditionalLogic.dependsOn) {
         const fieldDiv = html.substring(
-          html.lastIndexOf('<div class="form-field"')
+          html.lastIndexOf('<div class="form-field"'),
         );
         const updatedDiv = fieldDiv.replace(
           '<div class="form-field"',
@@ -1850,7 +1850,7 @@ function generateFormFieldsHTML(fields) {
                data-condition="${field.conditionalLogic.condition}"
                data-value="${JSON.stringify(field.conditionalLogic.value).replace(/"/g, '&quot;')}"
                data-show="${field.conditionalLogic.show}"
-               data-field-id="${field.id}"`
+               data-field-id="${field.id}"`,
         );
         html = html.replace(fieldDiv, updatedDiv);
       }
