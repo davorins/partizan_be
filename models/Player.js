@@ -58,7 +58,7 @@ const seasonRegistrationSchema = new mongoose.Schema(
     _id: false,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // Virtual for formatted season display
@@ -179,7 +179,7 @@ const playerSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // ==================== VIRTUAL PROPERTIES ====================
@@ -255,7 +255,7 @@ playerSchema.index(
   {
     name: 'season_lookup_idx',
     background: true,
-  }
+  },
 );
 
 // Index for active players (frequently used in queries)
@@ -265,7 +265,7 @@ playerSchema.index(
     name: 'payment_status_idx',
     partialFilterExpression: { 'seasons.paymentStatus': 'paid' },
     background: true,
-  }
+  },
 );
 
 // Index for grade-based queries
@@ -274,7 +274,7 @@ playerSchema.index(
   {
     name: 'grade_gender_idx',
     background: true,
-  }
+  },
 );
 
 // ==================== MIDDLEWARE ====================
@@ -364,7 +364,7 @@ playerSchema.pre('save', function (next) {
           originalCount,
           finalCount: this.seasons.length,
           removed: removedDuplicates,
-        }
+        },
       );
     }
   }
@@ -432,8 +432,8 @@ playerSchema.pre('findOneAndUpdate', async function (next) {
         if (isDuplicate) {
           return next(
             new Error(
-              `Player already has registration for ${newSeason.season} ${newSeason.year}`
-            )
+              `Player already has registration for ${newSeason.season} ${newSeason.year}`,
+            ),
           );
         }
       }
@@ -461,16 +461,47 @@ playerSchema.pre('save', function (next) {
 
     // Update last payment date if there are paid seasons
     const paidSeasons = this.seasons.filter(
-      (s) => s.paymentStatus === 'paid' && s.paymentDate
+      (s) => s.paymentStatus === 'paid' && s.paymentDate,
     );
     if (paidSeasons.length > 0) {
       const latestPayment = paidSeasons.sort(
-        (a, b) => new Date(b.paymentDate) - new Date(a.paymentDate)
+        (a, b) => new Date(b.paymentDate) - new Date(a.paymentDate),
       )[0];
       this.lastPaymentDate = latestPayment.paymentDate;
     }
   }
 
+  next();
+});
+
+// Pre-save middleware to normalize season names
+playerSchema.pre('save', function (next) {
+  if (this.seasons && this.isModified('seasons')) {
+    this.seasons = this.seasons.map((season) => {
+      let normalizedSeason = season.season;
+
+      // DON'T normalize tryout seasons with "Tryout - " prefix
+      // Just use the season name as provided
+
+      // Normalize training/camp seasons if needed
+      if (
+        season.season.toLowerCase().includes('camp') ||
+        season.season.toLowerCase().includes('training') ||
+        season.season.toLowerCase().includes('clinic') ||
+        (season.tryoutId && season.tryoutId.includes('-camp-'))
+      ) {
+        // Keep as is - don't change to "Basketball Training"
+        normalizedSeason = season.season;
+      }
+
+      return {
+        ...season,
+        season: normalizedSeason,
+      };
+    });
+  }
+
+  // Don't modify top-level season either
   next();
 });
 
@@ -482,7 +513,7 @@ playerSchema.pre('save', function (next) {
 playerSchema.statics.addSeason = async function (
   playerId,
   seasonData,
-  options = {}
+  options = {},
 ) {
   const session = options.session;
   const player = await this.findById(playerId).session(session);
@@ -511,7 +542,7 @@ playerSchema.statics.addSeason = async function (
 
   if (isDuplicate) {
     throw new Error(
-      `Player already registered for ${seasonData.season} ${seasonData.year}`
+      `Player already registered for ${seasonData.season} ${seasonData.year}`,
     );
   }
 
@@ -589,7 +620,7 @@ playerSchema.statics.isRegistered = async function (
   playerId,
   season,
   year,
-  tryoutId = null
+  tryoutId = null,
 ) {
   const query = {
     _id: playerId,
@@ -630,7 +661,7 @@ playerSchema.methods.updateSeasonPayment = async function (
   season,
   year,
   tryoutId,
-  paymentData
+  paymentData,
 ) {
   const seasonIndex = this.seasons.findIndex((s) => {
     const seasonMatch =
@@ -683,7 +714,7 @@ playerSchema.methods.updateSeasonPayment = async function (
 playerSchema.methods.removeSeason = async function (
   season,
   year,
-  tryoutId = null
+  tryoutId = null,
 ) {
   const initialLength = this.seasons.length;
 

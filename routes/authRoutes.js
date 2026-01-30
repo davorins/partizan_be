@@ -54,7 +54,7 @@ setInterval(
       console.log(`🧹 Cleaned up ${cleanedCount} expired tokens`);
     }
   },
-  60 * 60 * 1000
+  60 * 60 * 1000,
 ); // Every hour
 
 // Optional authentication middleware: Parses JWT if present, allows unauthenticated requests
@@ -104,40 +104,71 @@ const generateTryoutId = async (season, year) => {
     }
 
     // Then check TryoutConfig
+    const TryoutConfig = require('../models/TryoutConfig');
     const tryoutConfig = await TryoutConfig.findOne({
-      season: { $regex: new RegExp(season, 'i') },
+      $or: [
+        { season: { $regex: new RegExp(season, 'i') } },
+        { tryoutName: { $regex: new RegExp(season, 'i') } },
+        { displayName: { $regex: new RegExp(season, 'i') } },
+      ],
       tryoutYear: parseInt(year),
       isActive: true,
     });
 
-    if (tryoutConfig && tryoutConfig.eventId) {
-      console.log('✅ Found tryout config with eventId:', tryoutConfig.eventId);
-      return tryoutConfig.eventId;
+    if (tryoutConfig) {
+      // Return eventId if exists, otherwise tryoutName
+      const id =
+        tryoutConfig.eventId ||
+        tryoutConfig._id ||
+        `${tryoutConfig.tryoutName.toLowerCase().replace(/\s+/g, '-')}-${year}`;
+      console.log('✅ Found tryout config:', {
+        tryoutName: tryoutConfig.tryoutName,
+        eventId: tryoutConfig.eventId,
+        returning: id,
+      });
+      return id;
     }
 
     console.log('⚠️ No tryout or season event found, using generated ID');
 
-    // Clean season name for URL
-    const cleanSeason = season
-      .toLowerCase()
+    // ✅ Remove year from season name if it already contains it
+    let cleanSeason = season.toLowerCase();
+
+    // Remove the year from the season name if present (e.g., "Spring Tryout 2026" → "spring-tryout")
+    const yearRegex = new RegExp(`\\s*${year}\\s*$`, 'i');
+    cleanSeason = cleanSeason.replace(yearRegex, '').trim();
+
+    // Replace spaces with dashes and clean up
+    cleanSeason = cleanSeason
       .replace(/\s+/g, '-')
       .replace(/[^\w-]/g, '')
-      .replace(/-+$/, '');
+      .replace(/-+$/, '')
+      .replace(/^-+/, '');
 
     // Only append year once
     const tryoutId = `${cleanSeason}-${year}`;
 
-    console.log('Generated tryoutId:', tryoutId);
+    console.log('✅ Generated tryoutId:', {
+      originalSeason: season,
+      cleanedSeason: cleanSeason,
+      tryoutId,
+    });
     return tryoutId;
   } catch (error) {
     console.error('❌ Error in generateTryoutId:', error);
 
     // Fallback with cleaned season name
-    const cleanSeason = season
-      .toLowerCase()
+    let cleanSeason = season.toLowerCase();
+
+    // Remove year if present
+    const yearRegex = new RegExp(`\\s*${year}\\s*$`, 'i');
+    cleanSeason = cleanSeason.replace(yearRegex, '').trim();
+
+    cleanSeason = cleanSeason
       .replace(/\s+/g, '-')
       .replace(/[^\w-]/g, '')
-      .replace(/-+$/, '');
+      .replace(/-+$/, '')
+      .replace(/^-+/, '');
 
     return `${cleanSeason}-${year}`;
   }
@@ -396,7 +427,7 @@ router.post(
       } catch (emailError) {
         console.error(
           '⚠️ Welcome email failed (but registration succeeded):',
-          emailError
+          emailError,
         );
         // Don't fail the registration if email fails
       }
@@ -440,10 +471,9 @@ router.post(
           process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
-  }
+  },
 );
 
-// Register a new player
 // Register a new player
 router.post(
   '/players/register',
@@ -489,6 +519,7 @@ router.post(
       isGradeOverridden = false,
       tryoutId,
       skipSeasonRegistration = false,
+      immediatePaymentFlow = false,
     } = req.body;
 
     // Calculate grade if not overridden
@@ -541,32 +572,56 @@ router.post(
         providedTryoutId: tryoutId,
       });
 
-      // Check for duplicate season registration if NOT skipping season registration
-      if (!skipSeasonRegistration && season) {
-        // FIX: Check if player already has this season registration
-        const existingSeasonPlayer = await Player.findOne({
-          parentId,
-          fullName: { $regex: new RegExp(`^${fullName.trim()}$`, 'i') },
-          dob: new Date(dob),
-          'seasons.season': season,
-          'seasons.year': registrationYear,
-          ...(finalTryoutId && { 'seasons.tryoutId': finalTryoutId }),
-        }).session(session);
+      // ============ CRITICAL FIX: NORMALIZE SEASON NAMES ============
+      let normalizedSeason = season ? season.trim() : null;
 
-        if (existingSeasonPlayer) {
-          await session.abortTransaction();
-          console.log('❌ Duplicate season registration attempt:', {
-            fullName,
-            parentId,
-            season,
-            year: registrationYear,
-            tryoutId: finalTryoutId,
-          });
-          return res.status(400).json({
-            error: `Player ${fullName} is already registered for ${season} ${registrationYear}`,
-          });
+      if (!skipSeasonRegistration && normalizedSeason) {
+        // Determine program type based on tryoutId or season name
+        const isTrainingEvent =
+          finalTryoutId?.includes('-camp-') ||
+          finalTryoutId?.includes('-training-') ||
+          normalizedSeason.toLowerCase().includes('camp') ||
+          normalizedSeason.toLowerCase().includes('training');
+
+        const isTryoutEvent =
+          finalTryoutId?.includes('-tryout-') ||
+          normalizedSeason.toLowerCase().includes('tryout');
+
+        if (isTrainingEvent) {
+          // ✅ KEEP the original camp/training name (e.g., "Partizan Winter Break Camp")
+          console.log(`🎯 Training/Camp season: "${normalizedSeason}"`);
+          // DON'T change it to "Basketball Training"
+        } else if (isTryoutEvent) {
+          // For tryouts, check if we need to add prefix
+          const alreadyHasTryoutInName = normalizedSeason
+            .toLowerCase()
+            .includes('tryout');
+          const alreadyHasTryoutPrefix =
+            normalizedSeason.startsWith('Tryout - ');
+
+          if (!alreadyHasTryoutInName && !alreadyHasTryoutPrefix) {
+            // Name doesn't contain "tryout", add prefix
+            normalizedSeason = `Tryout - ${normalizedSeason}`;
+            console.log(
+              `🎯 Added tryout prefix: "${season}" -> "${normalizedSeason}"`,
+            );
+          } else if (alreadyHasTryoutInName && !alreadyHasTryoutPrefix) {
+            // Already has "tryout" in name but no prefix, keep as-is
+            console.log(
+              `ℹ️ Tryout season (already named): "${normalizedSeason}"`,
+            );
+          } else {
+            // Already has prefix, keep as-is
+            console.log(
+              `ℹ️ Tryout season (already prefixed): "${normalizedSeason}"`,
+            );
+          }
+        } else {
+          // For regular seasons, keep as-is
+          console.log(`ℹ️ Regular season: "${normalizedSeason}"`);
         }
       }
+      // ============ END CRITICAL FIX ============
 
       // Verify parent exists
       const parent = await Parent.findById(parentId).session(session);
@@ -596,18 +651,54 @@ router.post(
       };
 
       // Add season data if NOT skipping season registration
-      if (!skipSeasonRegistration && season) {
-        playerData.season = season.trim();
-        playerData.seasons = [
-          {
-            season: season.trim(),
-            year: registrationYear,
-            tryoutId: finalTryoutId,
-            registrationDate: new Date(),
-            paymentStatus: 'pending',
-            paymentComplete: false,
-          },
-        ];
+      if (!skipSeasonRegistration && normalizedSeason) {
+        playerData.season = normalizedSeason;
+
+        // Check if player already exists and has seasons
+        const existingPlayerWithSeasons = await Player.findOne({
+          parentId,
+          fullName: { $regex: new RegExp(`^${fullName.trim()}$`, 'i') },
+          dob: new Date(dob),
+          gender: gender,
+        });
+
+        if (existingPlayerWithSeasons && existingPlayerWithSeasons.seasons) {
+          // Check if this exact season already exists with normalized name
+          const seasonExists = existingPlayerWithSeasons.seasons.some(
+            (s) =>
+              s.season === normalizedSeason &&
+              s.year === registrationYear &&
+              s.tryoutId === finalTryoutId,
+          );
+
+          if (!seasonExists) {
+            playerData.seasons = [
+              ...existingPlayerWithSeasons.seasons,
+              {
+                season: normalizedSeason,
+                year: registrationYear,
+                tryoutId: finalTryoutId,
+                registrationDate: new Date(),
+                paymentStatus: 'pending',
+                paymentComplete: false,
+              },
+            ];
+          } else {
+            playerData.seasons = existingPlayerWithSeasons.seasons;
+            console.log('ℹ️ Season already exists, using existing seasons');
+          }
+        } else {
+          playerData.seasons = [
+            {
+              season: normalizedSeason,
+              year: registrationYear,
+              tryoutId: finalTryoutId,
+              registrationDate: new Date(),
+              paymentStatus: 'pending',
+              paymentComplete: false,
+            },
+          ];
+        }
       }
 
       const player = new Player(playerData);
@@ -617,20 +708,18 @@ router.post(
       await Parent.findByIdAndUpdate(
         parentId,
         { $push: { players: player._id } },
-        { session }
+        { session },
       );
 
-      // ✅ FIXED REGISTRATION CREATION - No duplicate check needed because we use upsert
+      // ✅ Create registration with normalized season names
       let registration = null;
 
-      // Create or update registration document if NOT skipping season registration
-      if (!skipSeasonRegistration && season) {
-        // Use upsert to ensure only one registration exists
+      if (!skipSeasonRegistration && normalizedSeason) {
         registration = await Registration.findOneAndUpdate(
           {
             player: player._id,
             parent: parentId,
-            season: season.trim(),
+            season: normalizedSeason,
             year: registrationYear,
             tryoutId: finalTryoutId,
           },
@@ -638,7 +727,7 @@ router.post(
             $setOnInsert: {
               player: player._id,
               parent: parentId,
-              season: season.trim(),
+              season: normalizedSeason,
               year: registrationYear,
               tryoutId: finalTryoutId,
               registrationComplete: true,
@@ -655,15 +744,17 @@ router.post(
             new: true,
             session,
             runValidators: true,
-          }
+          },
         );
 
         console.log('✅ Registration created/updated:', {
           registrationId: registration._id,
           playerId: player._id,
           playerName: player.fullName,
-          season,
+          originalSeason: season,
+          normalizedSeason: normalizedSeason,
           year: registrationYear,
+          tryoutId: finalTryoutId,
           paymentStatus: registration.paymentStatus,
           isNew:
             !registration.createdAt ||
@@ -674,29 +765,45 @@ router.post(
       await session.commitTransaction();
 
       // Send emails based on the registration type
-      if (!skipSeasonRegistration && season) {
-        // Send tryout confirmation email
-        try {
-          await sendTryoutEmail(
-            parent.email,
-            player.fullName,
-            season,
-            registrationYear
-          );
-          console.log('Tryout confirmation email sent successfully');
-        } catch (emailError) {
-          console.error('Tryout email failed:', emailError);
+      if (!skipSeasonRegistration && normalizedSeason) {
+        const isTraining = normalizedSeason === 'Basketball Training';
+        const isTryout = normalizedSeason.startsWith('Tryout - ');
+
+        if (isTryout) {
+          try {
+            await sendTryoutEmail(
+              parent.email,
+              player.fullName,
+              normalizedSeason,
+              registrationYear,
+            );
+            console.log('Tryout confirmation email sent successfully');
+          } catch (emailError) {
+            console.error('Tryout email failed:', emailError);
+          }
+        } else if (isTraining) {
+          try {
+            await sendTrainingRegistrationPendingEmail(
+              parentId,
+              [player._id],
+              normalizedSeason,
+              registrationYear,
+              req.body.packageInfo || null,
+            );
+            console.log('Training registration email sent successfully');
+          } catch (emailError) {
+            console.error('Training email failed:', emailError);
+          }
         }
 
-        // Send pending payment email
-        if (!req.body.immediatePaymentFlow) {
+        if (!immediatePaymentFlow && !isTraining) {
           try {
             await sendRegistrationPendingEmail(
               parentId,
               [player._id],
-              season,
+              normalizedSeason,
               registrationYear,
-              req.body.packageInfo || null
+              req.body.packageInfo || null,
             );
             console.log('Pending payment email sent for new registration');
           } catch (emailError) {
@@ -711,9 +818,10 @@ router.post(
         playerId: player._id,
         fullName: player.fullName,
         parentId,
-        season: season || 'No season (basic registration)',
+        originalSeason: season,
+        normalizedSeason: player.season,
         year: registrationYear,
-        hasSeasonRegistration: !skipSeasonRegistration && season,
+        hasSeasonRegistration: !skipSeasonRegistration && normalizedSeason,
         paymentStatus: player.paymentStatus,
         registrationId: registration ? registration._id : null,
       });
@@ -721,7 +829,7 @@ router.post(
       // Build response object
       const responseData = {
         message:
-          skipSeasonRegistration || !season
+          skipSeasonRegistration || !normalizedSeason
             ? 'Player registered successfully'
             : 'Player registered successfully for season',
         player: {
@@ -758,13 +866,20 @@ router.post(
 
       res.status(201).json(responseData);
     } catch (error) {
-      // Safely abort transaction if it was started
       if (session.inTransaction()) {
         await session.abortTransaction();
       }
       await session.endSession();
 
       console.error('Error registering player:', error.message, error.stack);
+
+      if (error.code === 11000) {
+        return res.status(400).json({
+          error: 'Duplicate registration detected',
+          details: 'This player is already registered for this season/tryout',
+        });
+      }
+
       res.status(500).json({
         error: 'Failed to register player',
         details:
@@ -773,10 +888,9 @@ router.post(
             : 'Internal server error',
       });
     }
-  }
+  },
 );
 
-// Register for basketball camp
 // Register for basketball camp
 router.post(
   '/register/basketball-camp',
@@ -1016,7 +1130,7 @@ router.post(
             new: true,
             session,
             runValidators: true,
-          }
+          },
         );
 
         registrationDocs.push(registration);
@@ -1036,7 +1150,7 @@ router.post(
 
       // Send welcome email (async, no await)
       sendWelcomeEmail(parent._id, savedPlayers[0]._id).catch((err) =>
-        console.error('Welcome email failed:', err)
+        console.error('Welcome email failed:', err),
       );
 
       const token = generateToken({
@@ -1110,7 +1224,7 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
 );
 
 // Login
@@ -1131,7 +1245,7 @@ router.post(
       const normalizedEmail = email.toLowerCase().trim();
 
       const parent = await Parent.findOne({ email: normalizedEmail }).select(
-        '+password'
+        '+password',
       );
 
       if (!parent) {
@@ -1171,7 +1285,7 @@ router.post(
         error: 'Server error during login',
       });
     }
-  }
+  },
 );
 
 // Request password reset
@@ -1274,7 +1388,7 @@ router.post(
           process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
-  }
+  },
 );
 
 // Change password
@@ -1350,7 +1464,7 @@ router.patch(
         .status(500)
         .json({ error: 'Failed to update role', details: error.message });
     }
-  }
+  },
 );
 
 // Fetch Parent data by ID
@@ -1381,7 +1495,7 @@ router.get('/parent/:id', async (req, res) => {
         }
 
         const guardianData = guardian.additionalGuardians.find(
-          (g) => g._id.toString() === id
+          (g) => g._id.toString() === id,
         );
         parent.guardianInfo = guardianData;
       }
@@ -1416,7 +1530,7 @@ router.put('/parent/:id', authenticate, async (req, res) => {
     const parent = await Parent.findByIdAndUpdate(
       req.params.id,
       { fullName, phone, address, relationship, email, isCoach, aauNumber },
-      { new: true }
+      { new: true },
     );
     if (!parent) {
       return res.status(404).json({ error: 'Parent not found' });
@@ -1452,7 +1566,7 @@ router.put('/parent/:id/guardian', authenticate, async (req, res) => {
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     res.json(parent);
@@ -1488,7 +1602,7 @@ router.put(
         .status(500)
         .json({ error: 'Failed to update guardian', details: error.message });
     }
-  }
+  },
 );
 
 // Update all guardians
@@ -1591,7 +1705,7 @@ router.get(
         // If we're filtering by season, use the matching season data from the array
         if (season && year && player.seasons) {
           const matchingSeason = player.seasons.find(
-            (s) => s.season === season && s.year === parseInt(year)
+            (s) => s.season === season && s.year === parseInt(year),
           );
 
           if (matchingSeason) {
@@ -1627,7 +1741,7 @@ router.get(
           process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
-  }
+  },
 );
 
 // Fetch players by tryout
@@ -1673,7 +1787,7 @@ router.get(
         details: error.message,
       });
     }
-  }
+  },
 );
 
 // Fetch player registrations
@@ -1719,7 +1833,7 @@ router.get(
         details: error.message,
       });
     }
-  }
+  },
 );
 
 // Fetch guardians for a player
@@ -2155,7 +2269,7 @@ router.put('/parent/:id/avatar', authenticate, async (req, res) => {
     const parent = await Parent.findByIdAndUpdate(
       req.params.id,
       { avatar: avatarUrl },
-      { new: true }
+      { new: true },
     );
 
     if (!parent) {
@@ -2212,7 +2326,7 @@ router.put('/player/:id/avatar', authenticate, async (req, res) => {
     const player = await Player.findByIdAndUpdate(
       req.params.id,
       { avatar: avatarUrl },
-      { new: true }
+      { new: true },
     );
 
     if (!player) {
@@ -2353,7 +2467,7 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
       if (playerRegistrations.length > 0) {
         // Use the most recent registration for this player
         const sortedRegistrations = playerRegistrations.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
         );
         registration = sortedRegistrations[0];
 
@@ -2366,7 +2480,7 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
       } else {
         // If no registration exists, create one (this shouldn't normally happen)
         console.log(
-          `⚠️ No registration found for player ${playerId}, creating one`
+          `⚠️ No registration found for player ${playerId}, creating one`,
         );
         registration = new Registration({
           player: playerId,
@@ -2400,41 +2514,107 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
       updatedRegistrationIds.push(registration._id.toString());
     }
 
-    // Update Player.seasons
-    const playersUpdate = await Player.updateMany(
-      {
-        _id: { $in: playerIds },
+    // ================ FIXED SECTION STARTS HERE ================
+    // Update Player.seasons - FIXED VERSION
+    const playersUpdate = { modifiedCount: 0 };
+
+    for (const playerId of playerIds) {
+      // First, get the player to check existing seasons
+      const player = await Player.findOne({
+        _id: playerId,
         parentId,
-      },
-      {
-        $set: {
-          // Update the specific season entry
-          'seasons.$[elem].paymentComplete': paymentStatus === 'paid',
-          'seasons.$[elem].paymentStatus': paymentStatus,
-          'seasons.$[elem].amountPaid': amountPaid
-            ? amountPaid / playerIds.length
-            : undefined,
-          'seasons.$[elem].paymentId': paymentId,
-          'seasons.$[elem].cardLast4': cardLast4,
-          'seasons.$[elem].cardBrand': cardBrand,
-          'seasons.$[elem].paymentDate':
-            paymentStatus === 'paid' ? new Date() : undefined,
-          // Also update top-level fields
-          paymentComplete: paymentStatus === 'paid',
-          paymentStatus,
-        },
-      },
-      {
-        session,
-        arrayFilters: [
-          {
-            'elem.season': season,
-            'elem.year': parseInt(year),
-            ...(tryoutId ? { 'elem.tryoutId': tryoutId } : {}),
-          },
-        ],
+      }).session(session);
+
+      if (!player) {
+        console.warn(`Player ${playerId} not found, skipping`);
+        continue;
       }
-    );
+
+      // Check if season already exists
+      const seasonIndex = player.seasons.findIndex(
+        (s) =>
+          s.season === season &&
+          s.year === parseInt(year) &&
+          s.tryoutId === (tryoutId || null),
+      );
+
+      const seasonData = {
+        season,
+        year: parseInt(year),
+        tryoutId: tryoutId || null,
+        registrationDate: new Date(),
+        paymentComplete: paymentStatus === 'paid',
+        paymentStatus: paymentStatus,
+        ...(paymentId && { paymentId }),
+        ...(amountPaid && { amountPaid: amountPaid / playerIds.length }),
+        ...(cardLast4 && { cardLast4 }),
+        ...(cardBrand && { cardBrand }),
+        ...(paymentStatus === 'paid' && { paymentDate: new Date() }),
+      };
+
+      if (seasonIndex !== -1) {
+        // Update existing season
+        await Player.updateOne(
+          {
+            _id: playerId,
+            parentId,
+          },
+          {
+            $set: {
+              [`seasons.${seasonIndex}.paymentComplete`]:
+                paymentStatus === 'paid',
+              [`seasons.${seasonIndex}.paymentStatus`]: paymentStatus,
+              [`seasons.${seasonIndex}.amountPaid`]: amountPaid
+                ? amountPaid / playerIds.length
+                : undefined,
+              [`seasons.${seasonIndex}.paymentId`]: paymentId,
+              [`seasons.${seasonIndex}.cardLast4`]: cardLast4,
+              [`seasons.${seasonIndex}.cardBrand`]: cardBrand,
+              [`seasons.${seasonIndex}.paymentDate`]:
+                paymentStatus === 'paid' ? new Date() : undefined,
+              // Update top-level fields only if this is the latest season
+              ...(player.registrationYear <= parseInt(year) && {
+                paymentComplete: paymentStatus === 'paid',
+                paymentStatus,
+                ...(player.registrationYear < parseInt(year) ||
+                (player.registrationYear === parseInt(year) &&
+                  player.season !== season)
+                  ? {
+                      registrationYear: parseInt(year),
+                      season,
+                    }
+                  : {}),
+              }),
+            },
+          },
+          { session },
+        );
+        playersUpdate.modifiedCount++;
+      } else {
+        // Add new season to the array
+        await Player.updateOne(
+          {
+            _id: playerId,
+            parentId,
+          },
+          {
+            $push: {
+              seasons: seasonData,
+            },
+            // Update top-level fields to reflect the new season
+            $set: {
+              registrationYear: parseInt(year),
+              season: season,
+              paymentComplete: paymentStatus === 'paid',
+              paymentStatus,
+            },
+          },
+          { session },
+        );
+        playersUpdate.modifiedCount++;
+      }
+    }
+    // ================ FIXED SECTION ENDS HERE ================
 
     // Update Parent payment status
     const allRegistrations = await Registration.find({
@@ -2444,7 +2624,7 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
     }).session(session);
 
     const allPaid = allRegistrations.every(
-      (reg) => reg.paymentStatus === 'paid'
+      (reg) => reg.paymentStatus === 'paid',
     );
 
     const parentUpdate = await Parent.findByIdAndUpdate(
@@ -2455,7 +2635,7 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
           updatedAt: new Date(),
         },
       },
-      { new: true, session }
+      { new: true, session },
     );
 
     await session.commitTransaction();
@@ -2479,7 +2659,7 @@ router.post('/payments/update-players', authenticate, async (req, res) => {
     console.error(
       '❌ Payment status update error:',
       error.message,
-      error.stack
+      error.stack,
     );
     res.status(500).json({
       success: false,
@@ -2623,12 +2803,12 @@ router.patch('/notifications/dismiss/:id', authenticate, async (req, res) => {
       Notification.findByIdAndUpdate(
         notificationId,
         { $addToSet: { dismissedBy: userId } },
-        { session }
+        { session },
       ),
       Parent.findByIdAndUpdate(
         userId,
         { $pull: { notifications: notificationId } },
-        { session }
+        { session },
       ),
     ]);
 
@@ -2743,7 +2923,7 @@ router.post('/notifications', authenticate, async (req, res) => {
     await Parent.updateMany(
       targetType === 'all' ? {} : { _id: { $in: resolvedParentIds } },
       updateOperation,
-      { session }
+      { session },
     );
 
     await session.commitTransaction();
@@ -2757,7 +2937,7 @@ router.post('/notifications', authenticate, async (req, res) => {
       } else {
         const parents = await Parent.find(
           { _id: { $in: resolvedParentIds } },
-          'email'
+          'email',
         );
         emails = parents.map((p) => p.email);
       }
@@ -2826,7 +3006,7 @@ router.patch('/notifications/read/:id', async (req, res) => {
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,
       { read },
-      { new: true }
+      { new: true },
     );
     if (!notification) return res.status(404).json({ error: 'Not found' });
     res.json(notification);
@@ -2889,14 +3069,14 @@ router.patch(
     const startTime = Date.now();
     console.log(
       `[PATCH /players/:playerId/season] Request received for playerId: ${req.params.playerId}`,
-      req.body
+      req.body,
     );
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log(
         `[PATCH /players/:playerId/season] Validation errors:`,
-        errors.array()
+        errors.array(),
       );
       return res.status(400).json({ success: false, errors: errors.array() });
     }
@@ -2919,7 +3099,7 @@ router.patch(
 
       if (!mongoose.Types.ObjectId.isValid(playerId)) {
         console.log(
-          `[PATCH /players/:playerId/season] Invalid playerId: ${playerId}`
+          `[PATCH /players/:playerId/season] Invalid playerId: ${playerId}`,
         );
         return res
           .status(400)
@@ -2933,7 +3113,7 @@ router.patch(
         const player = await Player.findById(playerId).session(session);
         if (!player) {
           console.log(
-            `[PATCH /players/:playerId/season] Player not found: ${playerId}`
+            `[PATCH /players/:playerId/season] Player not found: ${playerId}`,
           );
           await session.abortTransaction();
           return res
@@ -2970,7 +3150,7 @@ router.patch(
 
         const seasonIndex = player.seasons.findIndex(
           (s) =>
-            s.season === season && s.year === year && s.tryoutId === tryoutId
+            s.season === season && s.year === year && s.tryoutId === tryoutId,
         );
 
         if (
@@ -2978,7 +3158,7 @@ router.patch(
           player.seasons[seasonIndex].paymentStatus === 'paid'
         ) {
           console.log(
-            `[PATCH /players/:playerId/season] Player already paid: ${playerId}`
+            `[PATCH /players/:playerId/season] Player already paid: ${playerId}`,
           );
           await session.abortTransaction();
           return res.status(400).json({
@@ -3043,13 +3223,13 @@ router.patch(
               ...(cardBrand && { cardBrand }),
             },
           },
-          { upsert: true, new: true, session }
+          { upsert: true, new: true, session },
         );
 
         await session.commitTransaction();
 
         console.log(
-          `[PATCH /players/:playerId/season] Success for playerId: ${playerId}, duration: ${Date.now() - startTime}ms`
+          `[PATCH /players/:playerId/season] Success for playerId: ${playerId}, duration: ${Date.now() - startTime}ms`,
         );
 
         res.json({
@@ -3069,7 +3249,7 @@ router.patch(
         await session.abortTransaction();
         console.error(
           `[PATCH /players/:playerId/season] Transaction error:`,
-          error
+          error,
         );
         res.status(500).json({
           success: false,
@@ -3087,7 +3267,7 @@ router.patch(
         details: error.message,
       });
     }
-  }
+  },
 );
 
 router.patch('/players/:id/grade', authenticate, async (req, res) => {
@@ -3394,7 +3574,7 @@ router.post(
           teamDoc.coachIds.push(parent._id);
         }
         const tournamentEntry = teamDoc.tournaments.find(
-          (t) => t.tournament === tournament && t.year === year
+          (t) => t.tournament === tournament && t.year === year,
         );
         if (tournamentEntry) {
           if (tournamentEntry.levelOfCompetition !== team.levelOfCompetition) {
@@ -3457,7 +3637,7 @@ router.post(
       await registration.save({ session });
 
       const tournamentEntry = teamDoc.tournaments.find(
-        (t) => t.tournament === tournament && t.year === year
+        (t) => t.tournament === tournament && t.year === year,
       );
       if (tournamentEntry && !tournamentEntry.registrationId) {
         tournamentEntry.registrationId = registration._id;
@@ -3468,7 +3648,7 @@ router.post(
 
       if (!req.user) {
         sendTournamentWelcomeEmail(parent._id, null).catch((err) =>
-          console.error('Welcome email failed:', err)
+          console.error('Welcome email failed:', err),
         );
       }
 
@@ -3554,7 +3734,7 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
 );
 
 // Register existing team for tournament
@@ -3610,7 +3790,7 @@ router.post(
 
       // Check if team is already registered for the tournament
       const tournamentEntry = team.tournaments.find(
-        (t) => t.tournament === tournament && t.year === parseInt(year)
+        (t) => t.tournament === tournament && t.year === parseInt(year),
       );
       if (tournamentEntry) {
         if (tournamentEntry.levelOfCompetition !== levelOfCompetition) {
@@ -3653,7 +3833,7 @@ router.post(
 
       // Update team's tournament registrationId
       const updatedTournamentEntry = team.tournaments.find(
-        (t) => t.tournament === tournament && t.year === parseInt(year)
+        (t) => t.tournament === tournament && t.year === parseInt(year),
       );
       if (updatedTournamentEntry && !updatedTournamentEntry.registrationId) {
         updatedTournamentEntry.registrationId = registration._id;
@@ -3692,7 +3872,7 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
 );
 
 router.post(
@@ -3944,7 +4124,7 @@ router.post(
 
           // Check if team is already registered for this tournament
           const tournamentEntry = teamDoc.tournaments.find(
-            (t) => t.tournament === tournament && t.year === year
+            (t) => t.tournament === tournament && t.year === year,
           );
 
           if (tournamentEntry) {
@@ -4018,7 +4198,7 @@ router.post(
 
         // Update team's tournament registrationId
         const tournamentEntry = teamDoc.tournaments.find(
-          (t) => t.tournament === tournament && t.year === year
+          (t) => t.tournament === tournament && t.year === year,
         );
         if (tournamentEntry && !tournamentEntry.registrationId) {
           tournamentEntry.registrationId = registration._id;
@@ -4030,7 +4210,7 @@ router.post(
 
       if (!req.user) {
         sendTournamentWelcomeEmail(parent._id, null).catch((err) =>
-          console.error('Welcome email failed:', err)
+          console.error('Welcome email failed:', err),
         );
       }
 
@@ -4116,7 +4296,7 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
 );
 
 // Get registrations with payment status
@@ -4190,7 +4370,7 @@ router.get(
       console.error('Error checking registration:', error);
       res.status(500).json({ success: false, error: 'Server error' });
     }
-  }
+  },
 );
 
 // Get teams by coach
@@ -4314,7 +4494,7 @@ router.get('/tournaments/all', authenticate, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       console.log(
-        `Unauthorized access attempt to /tournaments/all by user: ${req.user.id}`
+        `Unauthorized access attempt to /tournaments/all by user: ${req.user.id}`,
       );
       return res
         .status(403)
@@ -4351,7 +4531,7 @@ router.get('/tournaments/all', authenticate, async (req, res) => {
     }
 
     console.log(
-      `Fetched ${tournaments.length} tournaments for admin: ${req.user.id}`
+      `Fetched ${tournaments.length} tournaments for admin: ${req.user.id}`,
     );
     res.json({ success: true, tournaments });
   } catch (error) {
@@ -4381,7 +4561,7 @@ router.get(
     if (!errors.isEmpty()) {
       console.log(
         'Validation errors for /registrations/by-tournament:',
-        errors.array()
+        errors.array(),
       );
       return res.status(400).json({ success: false, errors: errors.array() });
     }
@@ -4389,7 +4569,7 @@ router.get(
     try {
       if (req.user.role !== 'admin') {
         console.log(
-          `Unauthorized access attempt to /registrations/by-tournament by user: ${req.user.id}`
+          `Unauthorized access attempt to /registrations/by-tournament by user: ${req.user.id}`,
         );
         return res
           .status(403)
@@ -4413,14 +4593,14 @@ router.get(
         .populate('team', '_id name grade sex levelOfCompetition')
         .populate('parent', '_id fullName email')
         .select(
-          '_id team parent paymentStatus paymentComplete registrationDate levelOfCompetition'
+          '_id team parent paymentStatus paymentComplete registrationDate levelOfCompetition',
         )
         .sort({ registrationDate: -1 })
         .lean();
 
       if (!registrations || registrations.length === 0) {
         console.log(
-          `No registrations found for tournament: ${tournament}, year: ${year}`
+          `No registrations found for tournament: ${tournament}, year: ${year}`,
         );
         return res
           .status(404)
@@ -4433,19 +4613,19 @@ router.get(
           reg.team?._id &&
           reg.team?.name &&
           reg.parent?._id &&
-          reg.parent?.fullName
+          reg.parent?.fullName,
       );
 
       if (validRegistrations.length !== registrations.length) {
         console.warn(
           `Filtered out ${registrations.length - validRegistrations.length} invalid registrations ` +
-            `for tournament: ${tournament}, year: ${year}`
+            `for tournament: ${tournament}, year: ${year}`,
         );
       }
 
       console.log(
         `Fetched ${validRegistrations.length} valid registrations for ` +
-          `tournament: ${tournament}, year: ${year}, admin: ${req.user.id}`
+          `tournament: ${tournament}, year: ${year}, admin: ${req.user.id}`,
       );
       res.json({ success: true, registrations: validRegistrations });
     } catch (error) {
@@ -4453,7 +4633,7 @@ router.get(
         `Error fetching registrations for tournament: ${req.params.tournament}, ` +
           `year: ${req.params.year}:`,
         error.message,
-        error.stack
+        error.stack,
       );
       res.status(500).json({
         success: false,
@@ -4462,7 +4642,7 @@ router.get(
           process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
-  }
+  },
 );
 
 // Send verification email
@@ -4509,7 +4689,7 @@ router.post(
             (24 * 60 * 60 * 1000 - 2 * 60 * 1000) -
             Date.now()) /
             1000 /
-            60
+            60,
         );
         return res.status(429).json({
           error: `Verification email was recently sent. Please check your email or wait ${timeLeft} minute(s) before requesting another.`,
@@ -4625,7 +4805,7 @@ router.post(
           process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
-  }
+  },
 );
 
 // Verify email with token
@@ -4699,7 +4879,7 @@ router.post(
           process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
-  }
+  },
 );
 
 // Check verification status
@@ -4787,7 +4967,7 @@ router.post(
         error: 'Failed to resend verification email',
       });
     }
-  }
+  },
 );
 
 // Create temporary account (for registration flow)
@@ -4831,7 +5011,7 @@ router.post(
         // 🔥 CRITICAL: Still send the email with the existing token
         await sendVerificationEmailWithToken(
           normalizedEmail,
-          existingTempData.token
+          existingTempData.token,
         );
 
         return res.json({
@@ -4877,7 +5057,7 @@ router.post(
         details: error.message,
       });
     }
-  }
+  },
 );
 
 // 🔥 ADD THIS HELPER FUNCTION to send verification emails
@@ -4984,7 +5164,7 @@ router.get('/guardians/my-guardians', authenticate, async (req, res) => {
   try {
     const parent = await Parent.findById(req.user.id)
       .select(
-        'additionalGuardians fullName email phone address relationship isCoach aauNumber'
+        'additionalGuardians fullName email phone address relationship isCoach aauNumber',
       )
       .lean();
 
@@ -5076,7 +5256,7 @@ router.post(
         season,
         year,
         packageInfo,
-        playersData
+        playersData,
       );
 
       res.json({
@@ -5091,7 +5271,7 @@ router.post(
         details: error.message,
       });
     }
-  }
+  },
 );
 
 router.get('/registration/active-config', async (req, res) => {
@@ -5139,7 +5319,59 @@ router.get(
       console.error('Error fetching registrations:', error);
       res.status(500).json({ error: 'Failed to fetch registrations' });
     }
-  }
+  },
 );
+
+router.post('/players/:playerId/add-season', authenticate, async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { season, year, tryoutId, paymentStatus = 'pending' } = req.body;
+
+    const player = await Player.findById(playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    // Check if season already exists
+    const existingSeason = player.seasons.find(
+      (s) => s.season === season && s.year === year && s.tryoutId === tryoutId,
+    );
+
+    if (existingSeason) {
+      return res.status(400).json({
+        error: 'Season already exists for this player',
+      });
+    }
+
+    // Add new season
+    player.seasons.push({
+      season,
+      year,
+      tryoutId: tryoutId || null,
+      registrationDate: new Date(),
+      paymentStatus,
+      paymentComplete: paymentStatus === 'paid',
+    });
+
+    // Update top-level fields if this is the latest season
+    if (
+      year > player.registrationYear ||
+      (year === player.registrationYear && season > player.season)
+    ) {
+      player.registrationYear = year;
+      player.season = season;
+    }
+
+    await player.save();
+
+    res.json({
+      success: true,
+      player,
+    });
+  } catch (error) {
+    console.error('Error adding season:', error);
+    res.status(500).json({ error: 'Failed to add season' });
+  }
+});
 
 module.exports = router;

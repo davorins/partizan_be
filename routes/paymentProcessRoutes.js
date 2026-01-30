@@ -105,7 +105,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
     // CRITICAL: Validate tournamentId
     if (!tournamentId) {
       console.warn(
-        'No tournamentId provided in request, attempting to use tournaments array'
+        'No tournamentId provided in request, attempting to use tournaments array',
       );
       // Try to get tournamentId from tournaments array
       if (tournaments && tournaments.length > 0) {
@@ -114,7 +114,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
           tournamentId = firstTournament.tournamentId;
           console.log(
             'Using tournamentId from tournaments array:',
-            tournamentId
+            tournamentId,
           );
         }
       }
@@ -178,7 +178,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
     console.log('Team found:', team.name);
     console.log(
       'Current team tournaments:',
-      JSON.stringify(team.tournaments, null, 2)
+      JSON.stringify(team.tournaments, null, 2),
     );
 
     // Get parent for Square customer
@@ -212,7 +212,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
         await Parent.updateOne(
           { _id: parentId },
           { $set: { squareCustomerId: customerId } },
-          { session }
+          { session },
         );
       } catch (squareError) {
         console.error('Error creating Square customer:', squareError);
@@ -330,7 +330,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
 
     console.log(
       'Prepared tournament data for schema validation:',
-      tournamentData
+      tournamentData,
     );
 
     // Initialize tournaments array if it doesn't exist
@@ -342,14 +342,14 @@ router.post('/tournament-team', authenticate, async (req, res) => {
     const tournamentIndex = team.tournaments.findIndex(
       (t) =>
         (t.tournamentName === tournament || t.tournament === tournament) &&
-        t.year === parseInt(year)
+        t.year === parseInt(year),
     );
 
     if (tournamentIndex >= 0) {
       // Update existing tournament entry
       console.log(
         'Updating existing tournament entry at index:',
-        tournamentIndex
+        tournamentIndex,
       );
       team.tournaments[tournamentIndex] = {
         ...team.tournaments[tournamentIndex],
@@ -377,7 +377,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
       await team.save({ session });
       console.log(
         'Team saved successfully with tournaments:',
-        JSON.stringify(team.tournaments, null, 2)
+        JSON.stringify(team.tournaments, null, 2),
       );
     } catch (saveError) {
       console.error('Error saving team:', saveError.message);
@@ -414,7 +414,7 @@ router.post('/tournament-team', authenticate, async (req, res) => {
           updatedAt: new Date(),
         },
       },
-      { session }
+      { session },
     );
 
     console.log('Registrations updated:', {
@@ -449,14 +449,14 @@ router.post('/tournament-team', authenticate, async (req, res) => {
         [teamId],
         tournament,
         year,
-        amount / 100
+        amount / 100,
       );
 
       console.log('Tournament confirmation email sent successfully');
     } catch (emailError) {
       console.error(
         'Failed to send tournament confirmation email:',
-        emailError
+        emailError,
       );
       // Don't fail the payment if email fails
     }
@@ -613,7 +613,7 @@ router.post('/tournament-teams', authenticate, async (req, res) => {
         await Parent.updateOne(
           { _id: parentId },
           { $set: { squareCustomerId: customerId } },
-          { session }
+          { session },
         );
       } catch (squareError) {
         console.error('Error creating Square customer:', squareError);
@@ -696,7 +696,7 @@ router.post('/tournament-teams', authenticate, async (req, res) => {
 
       // Update team tournament payment status
       const tournamentIndex = team.tournaments.findIndex(
-        (t) => t.tournament === tournament && t.year === parseInt(year)
+        (t) => t.tournament === tournament && t.year === parseInt(year),
       );
 
       const tournamentData = {
@@ -754,7 +754,7 @@ router.post('/tournament-teams', authenticate, async (req, res) => {
             updatedAt: new Date(),
           },
         },
-        { session }
+        { session },
       );
     }
 
@@ -807,14 +807,14 @@ router.post('/tournament-teams', authenticate, async (req, res) => {
         updatedTeams.map((team) => team._id),
         tournament,
         year,
-        amount / 100
+        amount / 100,
       );
 
       console.log('Tournament confirmation email sent for multiple teams');
     } catch (emailError) {
       console.error(
         'Failed to send tournament confirmation email:',
-        emailError
+        emailError,
       );
       // Don't fail the payment if email fails
     }
@@ -874,7 +874,7 @@ router.post('/fix-mock-payments', authenticate, async (req, res) => {
 
     // Find and remove mock payment entries
     const tournamentRegistration = team.tournaments.find(
-      (t) => t.tournament === tournament && t.year === parseInt(year)
+      (t) => t.tournament === tournament && t.year === parseInt(year),
     );
 
     if (
@@ -1123,37 +1123,84 @@ router.post(
           },
         });
 
-        // Find matching season
-        const seasonIndex = player.seasons.findIndex(
+        // Look for pending seasons that match the same event (could have different tryoutId variations)
+        const pendingSeasonIndex = player.seasons.findIndex(
           (s) =>
             s.season.trim().toLowerCase() === normalizedSeason.toLowerCase() &&
             s.year === playerData.year &&
-            s.tryoutId.trim().toLowerCase() === normalizedTryoutId.toLowerCase()
+            s.paymentStatus === 'pending' &&
+            // Try to match similar tryout IDs (spring-2026, tryout-2026, etc)
+            (s.tryoutId.trim().toLowerCase().includes('spring') ||
+              s.tryoutId.trim().toLowerCase().includes('tryout')),
         );
 
-        const seasonData = {
-          season: normalizedSeason,
-          year: playerData.year,
-          tryoutId: normalizedTryoutId,
-          paymentStatus: 'paid',
-          paymentComplete: true,
-          paymentId: paymentResult.id,
-          amountPaid: perPlayerAmount,
-          cardLast4: cardDetails.last_4 || '',
-          cardBrand: cardDetails.card_brand || '',
-          paymentDate: new Date(),
-          registrationDate:
-            seasonIndex >= 0
-              ? player.seasons[seasonIndex].registrationDate
-              : new Date(),
-        };
+        if (pendingSeasonIndex >= 0) {
+          console.log('✅ Found pending season to update:', {
+            existingTryoutId: player.seasons[pendingSeasonIndex].tryoutId,
+            newTryoutId: normalizedTryoutId,
+            index: pendingSeasonIndex,
+          });
 
-        if (seasonIndex >= 0) {
-          // Update existing season
-          player.seasons[seasonIndex] = seasonData;
+          // Update the existing pending season
+          player.seasons[pendingSeasonIndex] = {
+            ...player.seasons[pendingSeasonIndex],
+            season: normalizedSeason,
+            year: playerData.year,
+            tryoutId: normalizedTryoutId, // Use the new tryoutId from payment
+            paymentStatus: 'paid',
+            paymentComplete: true,
+            paymentId: paymentResult.id,
+            amountPaid: perPlayerAmount,
+            cardLast4: cardDetails.last_4 || '',
+            cardBrand: cardDetails.card_brand || '',
+            paymentDate: new Date(),
+            // Keep the original registration date
+            registrationDate:
+              player.seasons[pendingSeasonIndex].registrationDate || new Date(),
+          };
+
+          console.log('✅ Updated pending season to paid');
         } else {
-          // Add new season
-          player.seasons.push(seasonData);
+          // No pending season found, check if already paid
+          const existingPaidSeasonIndex = player.seasons.findIndex(
+            (s) =>
+              s.season.trim().toLowerCase() ===
+                normalizedSeason.toLowerCase() &&
+              s.year === playerData.year &&
+              s.tryoutId.trim().toLowerCase() ===
+                normalizedTryoutId.toLowerCase() &&
+              s.paymentStatus === 'paid',
+          );
+
+          if (existingPaidSeasonIndex >= 0) {
+            console.log(
+              'ℹ️ Player already paid for this season, updating payment info',
+            );
+            player.seasons[existingPaidSeasonIndex] = {
+              ...player.seasons[existingPaidSeasonIndex],
+              paymentId: paymentResult.id,
+              amountPaid: perPlayerAmount,
+              cardLast4: cardDetails.last_4 || '',
+              cardBrand: cardDetails.card_brand || '',
+              paymentDate: new Date(),
+            };
+          } else {
+            // Add new season
+            console.log('➕ Creating new paid season');
+            player.seasons.push({
+              season: normalizedSeason,
+              year: playerData.year,
+              tryoutId: normalizedTryoutId,
+              paymentStatus: 'paid',
+              paymentComplete: true,
+              paymentId: paymentResult.id,
+              amountPaid: perPlayerAmount,
+              cardLast4: cardDetails.last_4 || '',
+              cardBrand: cardDetails.card_brand || '',
+              paymentDate: new Date(),
+              registrationDate: new Date(),
+            });
+          }
         }
 
         // Update top-level player fields
@@ -1170,55 +1217,77 @@ router.post(
           paymentStatus: updatedPlayer.paymentStatus,
           paymentComplete: updatedPlayer.paymentComplete,
           registrationComplete: updatedPlayer.registrationComplete,
-          seasons: updatedPlayer.seasons.find(
+          seasons: updatedPlayer.seasons.filter(
             (s) =>
               s.season.trim().toLowerCase() ===
-                normalizedSeason.toLowerCase() &&
-              s.year === playerData.year &&
-              s.tryoutId.trim().toLowerCase() ===
-                normalizedTryoutId.toLowerCase()
+                normalizedSeason.toLowerCase() && s.year === playerData.year,
           ),
         });
         updatedPlayers.push(updatedPlayer);
 
-        // Update or create registration
-        const registrationUpdate = await Registration.findOneAndUpdate(
-          {
-            player: updatedPlayer._id,
-            season: normalizedSeason,
-            year: playerData.year,
-            tryoutId: normalizedTryoutId,
-            parent: parent._id,
-          },
-          {
-            $set: {
-              paymentStatus: 'paid',
-              paymentComplete: true,
-              paymentId: paymentResult.id,
-              amountPaid: perPlayerAmount,
-              cardLast4: cardDetails.last_4 || '',
-              cardBrand: cardDetails.card_brand || '',
-              paymentDate: new Date(),
-              registrationComplete: true,
-              updatedAt: new Date(),
-              parent: parent._id,
-            },
-          },
-          { upsert: true, new: true, session }
-        );
-        console.log('Updated/created registration:', {
-          registrationId: registrationUpdate._id,
-          playerId: updatedPlayer._id,
-          fullName: updatedPlayer.fullName,
+        // 🚨 CRITICAL FIX: Also update the Registration collection
+        // First, look for pending registration to update
+        const pendingRegistration = await Registration.findOne({
+          player: updatedPlayer._id,
           season: normalizedSeason,
           year: playerData.year,
-          tryoutId: normalizedTryoutId,
-          paymentStatus: registrationUpdate.paymentStatus,
-          paymentComplete: registrationUpdate.paymentComplete,
-          registrationComplete: registrationUpdate.registrationComplete,
-          paymentId: registrationUpdate.paymentId,
-          paymentDate: registrationUpdate.paymentDate,
-        });
+          paymentStatus: 'pending',
+        }).session(session);
+
+        if (pendingRegistration) {
+          console.log(
+            '✅ Found pending registration to update:',
+            pendingRegistration._id,
+          );
+
+          // Update the pending registration
+          await Registration.findByIdAndUpdate(
+            pendingRegistration._id,
+            {
+              $set: {
+                tryoutId: normalizedTryoutId,
+                paymentStatus: 'paid',
+                paymentComplete: true,
+                paymentId: paymentResult.id,
+                amountPaid: perPlayerAmount,
+                cardLast4: cardDetails.last_4 || '',
+                cardBrand: cardDetails.card_brand || '',
+                paymentDate: new Date(),
+                registrationComplete: true,
+                updatedAt: new Date(),
+              },
+            },
+            { session },
+          );
+          console.log('✅ Updated pending registration to paid');
+        } else {
+          // Create new registration or update existing
+          await Registration.findOneAndUpdate(
+            {
+              player: updatedPlayer._id,
+              season: normalizedSeason,
+              year: playerData.year,
+              tryoutId: normalizedTryoutId,
+              parent: parent._id,
+            },
+            {
+              $set: {
+                paymentStatus: 'paid',
+                paymentComplete: true,
+                paymentId: paymentResult.id,
+                amountPaid: perPlayerAmount,
+                cardLast4: cardDetails.last_4 || '',
+                cardBrand: cardDetails.card_brand || '',
+                paymentDate: new Date(),
+                registrationComplete: true,
+                updatedAt: new Date(),
+                parent: parent._id,
+              },
+            },
+            { upsert: true, new: true, session },
+          );
+          console.log('✅ Created/updated registration');
+        }
       }
 
       // Update parent
@@ -1230,7 +1299,7 @@ router.post(
       }).session(session);
 
       const allPaid = allRegistrations.every(
-        (reg) => reg.paymentStatus === 'paid'
+        (reg) => reg.paymentStatus === 'paid',
       );
 
       await Parent.findByIdAndUpdate(
@@ -1241,7 +1310,7 @@ router.post(
             updatedAt: new Date(),
           },
         },
-        { session }
+        { session },
       );
 
       // Send receipt email
@@ -1360,7 +1429,492 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
+);
+
+// Add this new endpoint after the tryout payment endpoint
+router.post(
+  '/training',
+  authenticate,
+  [
+    body('token').notEmpty().withMessage('Payment token is required'),
+    body('amount')
+      .isInt({ min: 1 })
+      .withMessage('Amount must be a positive integer'),
+    body('currency').isIn(['USD']).withMessage('Currency must be USD'),
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('players')
+      .isArray({ min: 1 })
+      .withMessage('At least one player is required'),
+    body('players.*.playerId')
+      .notEmpty()
+      .custom((value) => mongoose.Types.ObjectId.isValid(value))
+      .withMessage('Valid playerId is required'),
+    body('players.*.season').notEmpty().withMessage('Season is required'),
+    body('players.*.year')
+      .isInt({ min: 2020, max: 2030 })
+      .withMessage('Year must be between 2020 and 2030'),
+    body('players.*.tryoutId')
+      .optional()
+      .isString()
+      .withMessage('Tryout ID must be a string if provided'),
+    body('cardDetails').isObject().withMessage('Card details are required'),
+    body('cardDetails.last_4')
+      .isLength({ min: 4, max: 4 })
+      .withMessage('Invalid card last 4 digits'),
+    body('cardDetails.card_brand')
+      .notEmpty()
+      .withMessage('Card brand is required'),
+    body('cardDetails.exp_month')
+      .isInt({ min: 1, max: 12 })
+      .withMessage('Invalid expiration month'),
+    body('cardDetails.exp_year')
+      .isInt({ min: new Date().getFullYear() })
+      .withMessage('Invalid expiration year'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Training payment validation errors:', errors.array());
+      const errorMessages = errors.array().map((err) => err.msg);
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+        message: `Training payment validation failed: ${errorMessages.join(', ')}`,
+      });
+    }
+
+    const { token, sourceId, amount, currency, email, players, cardDetails } =
+      req.body;
+    const perPlayerAmount = amount / 100 / players.length;
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Log incoming training payment data
+      console.log('Training payment data received:', {
+        parentId: req.user.id,
+        playerIds: players.map((p) => p.playerId),
+        season: players[0]?.season,
+        year: players[0]?.year,
+        tryoutId: players[0]?.tryoutId,
+        amount: amount / 100,
+        playerCount: players.length,
+      });
+
+      // Verify parent exists
+      const parent = await Parent.findById(req.user.id).session(session);
+      if (!parent) {
+        console.error('Parent not found for training payment:', {
+          parentId: req.user.id,
+        });
+        throw new Error('Parent not found');
+      }
+
+      // Process payment with Square
+      const paymentRequest = {
+        sourceId: sourceId || token,
+        amountMoney: {
+          amount: parseInt(amount),
+          currency: currency,
+        },
+        idempotencyKey: crypto.randomUUID(),
+        locationId: process.env.SQUARE_LOCATION_ID,
+        customerId: parent.squareCustomerId,
+        referenceId: `training:${parent._id}:${Date.now()}`,
+        note: `Training payment for ${players.length} player(s)`,
+        buyerEmailAddress: email,
+      };
+
+      console.log('Initiating Square payment for training:', {
+        amount: amount / 100,
+        playerCount: players.length,
+        playerIds: players.map((p) => p.playerId),
+      });
+
+      const paymentResponse =
+        await client.paymentsApi.createPayment(paymentRequest);
+      const paymentResult = paymentResponse.result.payment;
+
+      if (paymentResult.status !== 'COMPLETED') {
+        console.error('Training payment failed:', {
+          status: paymentResult.status,
+          paymentId: paymentResult.id,
+        });
+        throw new Error(
+          `Training payment failed with status: ${paymentResult.status}`,
+        );
+      }
+
+      // Create Payment record
+      const payment = new Payment({
+        parentId: parent._id,
+        playerCount: players.length,
+        playerIds: players.map((p) => p.playerId),
+        paymentId: paymentResult.id,
+        locationId: process.env.SQUARE_LOCATION_ID,
+        buyerEmail: email,
+        cardLastFour: cardDetails.last_4 || '',
+        cardBrand: cardDetails.card_brand || '',
+        cardExpMonth: cardDetails.exp_month,
+        cardExpYear: cardDetails.exp_year,
+        amount: amount / 100,
+        currency,
+        status: 'completed',
+        processedAt: new Date(),
+        receiptUrl: paymentResult.receiptUrl,
+        players: players.map((p) => ({
+          playerId: p.playerId,
+          season: p.season.trim(),
+          year: p.year,
+          tryoutId: p.tryoutId?.trim() || 'training',
+        })),
+        paymentType: 'training',
+      });
+
+      await payment.save({ session });
+
+      // Update all players and their seasons for training
+      const updatedPlayers = [];
+      for (const playerData of players) {
+        const normalizedSeason = playerData.season.trim();
+        const normalizedTryoutId = playerData.tryoutId?.trim() || 'training';
+
+        // Find player by playerId
+        let player;
+        if (
+          playerData.playerId &&
+          mongoose.Types.ObjectId.isValid(playerData.playerId)
+        ) {
+          player = await Player.findOne({
+            _id: playerData.playerId,
+            parentId: parent._id,
+          }).session(session);
+        }
+
+        if (!player) {
+          console.error('Player not found for training payment:', {
+            playerId: playerData.playerId,
+            parentId: parent._id,
+            season: normalizedSeason,
+            year: playerData.year,
+            tryoutId: normalizedTryoutId,
+          });
+          throw new Error(`Player not found for ID: ${playerData.playerId}`);
+        }
+
+        console.log('Processing training update for player:', {
+          playerId: player._id,
+          fullName: player.fullName,
+          existingSeasons: player.seasons.map((s) => ({
+            season: s.season,
+            year: s.year,
+            tryoutId: s.tryoutId,
+            paymentStatus: s.paymentStatus,
+          })),
+          updateData: {
+            season: normalizedSeason,
+            year: playerData.year,
+            tryoutId: normalizedTryoutId,
+          },
+        });
+
+        // 🚨 CRITICAL: First check for PENDING training seasons
+        // Look for any pending season that is a training season for this year
+        const pendingTrainingSeasonIndex = player.seasons.findIndex((s) => {
+          const isTrainingSeason =
+            s.season?.toLowerCase().includes('training') ||
+            s.season === 'Basketball Training' ||
+            s.season === 'Training';
+          const isSameYear = s.year === playerData.year;
+          const isPending = s.paymentStatus === 'pending';
+
+          // Check tryoutId if provided
+          if (normalizedTryoutId && normalizedTryoutId !== 'training') {
+            const isSameEvent = s.tryoutId === normalizedTryoutId;
+            return isTrainingSeason && isSameYear && isSameEvent && isPending;
+          }
+
+          return isTrainingSeason && isSameYear && isPending;
+        });
+
+        if (pendingTrainingSeasonIndex >= 0) {
+          console.log('✅ Found pending training season to update:', {
+            existingTryoutId:
+              player.seasons[pendingTrainingSeasonIndex].tryoutId,
+            newTryoutId: normalizedTryoutId,
+            index: pendingTrainingSeasonIndex,
+            existingSeason: player.seasons[pendingTrainingSeasonIndex].season,
+          });
+
+          // Update the existing pending training season
+          player.seasons[pendingTrainingSeasonIndex] = {
+            ...player.seasons[pendingTrainingSeasonIndex],
+            season: normalizedSeason,
+            year: playerData.year,
+            tryoutId: normalizedTryoutId,
+            paymentStatus: 'paid',
+            paymentComplete: true,
+            paymentId: paymentResult.id,
+            amountPaid: perPlayerAmount,
+            cardLast4: cardDetails.last_4 || '',
+            cardBrand: cardDetails.card_brand || '',
+            paymentDate: new Date(),
+            registrationDate:
+              player.seasons[pendingTrainingSeasonIndex].registrationDate ||
+              new Date(),
+          };
+
+          console.log('✅ Updated pending training season to paid');
+        } else {
+          // No pending training found, check if already paid
+          const existingPaidTrainingIndex = player.seasons.findIndex((s) => {
+            const isTrainingSeason =
+              s.season?.toLowerCase().includes('training') ||
+              s.season === 'Basketball Training' ||
+              s.season === 'Training';
+            const isSameYear = s.year === playerData.year;
+            const isPaid = s.paymentStatus === 'paid';
+
+            if (normalizedTryoutId && normalizedTryoutId !== 'training') {
+              const isSameEvent = s.tryoutId === normalizedTryoutId;
+              return isTrainingSeason && isSameYear && isSameEvent && isPaid;
+            }
+
+            return isTrainingSeason && isSameYear && isPaid;
+          });
+
+          if (existingPaidTrainingIndex >= 0) {
+            console.log(
+              'ℹ️ Player already paid for training, updating payment info',
+            );
+            player.seasons[existingPaidTrainingIndex] = {
+              ...player.seasons[existingPaidTrainingIndex],
+              paymentId: paymentResult.id,
+              amountPaid: perPlayerAmount,
+              cardLast4: cardDetails.last_4 || '',
+              cardBrand: cardDetails.card_brand || '',
+              paymentDate: new Date(),
+            };
+          } else {
+            // Add new training season
+            console.log('➕ Creating new paid training season');
+            player.seasons.push({
+              season: normalizedSeason,
+              year: playerData.year,
+              tryoutId: normalizedTryoutId,
+              paymentStatus: 'paid',
+              paymentComplete: true,
+              paymentId: paymentResult.id,
+              amountPaid: perPlayerAmount,
+              cardLast4: cardDetails.last_4 || '',
+              cardBrand: cardDetails.card_brand || '',
+              paymentDate: new Date(),
+              registrationDate: new Date(),
+            });
+          }
+        }
+
+        // Update top-level player fields
+        player.paymentStatus = 'paid';
+        player.paymentComplete = true;
+        player.registrationComplete = true;
+        player.lastPaymentDate = new Date();
+        player.markModified('seasons');
+
+        const updatedPlayer = await player.save({ session });
+        console.log('Updated player for training:', {
+          playerId: updatedPlayer._id,
+          fullName: updatedPlayer.fullName,
+          paymentStatus: updatedPlayer.paymentStatus,
+          paymentComplete: updatedPlayer.paymentComplete,
+          registrationComplete: updatedPlayer.registrationComplete,
+          trainingSeasons: updatedPlayer.seasons.filter((s) => {
+            const isTrainingSeason =
+              s.season?.toLowerCase().includes('training') ||
+              s.season === 'Basketball Training' ||
+              s.season === 'Training';
+            return isTrainingSeason && s.year === playerData.year;
+          }),
+        });
+        updatedPlayers.push(updatedPlayer);
+
+        // 🚨 CRITICAL: Also update the Registration collection for training
+        // First, look for pending training registration to update
+        const pendingRegistration = await Registration.findOne({
+          player: updatedPlayer._id,
+          season: { $regex: /training/i }, // Case-insensitive search for "training"
+          year: playerData.year,
+          paymentStatus: 'pending',
+        }).session(session);
+
+        if (pendingRegistration) {
+          console.log(
+            '✅ Found pending training registration to update:',
+            pendingRegistration._id,
+          );
+
+          // Update the pending registration
+          await Registration.findByIdAndUpdate(
+            pendingRegistration._id,
+            {
+              $set: {
+                season: normalizedSeason,
+                tryoutId: normalizedTryoutId,
+                paymentStatus: 'paid',
+                paymentComplete: true,
+                paymentId: paymentResult.id,
+                amountPaid: perPlayerAmount,
+                cardLast4: cardDetails.last_4 || '',
+                cardBrand: cardDetails.card_brand || '',
+                paymentDate: new Date(),
+                registrationComplete: true,
+                updatedAt: new Date(),
+              },
+            },
+            { session },
+          );
+          console.log('✅ Updated pending training registration to paid');
+        } else {
+          // Create new registration or update existing
+          await Registration.findOneAndUpdate(
+            {
+              player: updatedPlayer._id,
+              season: normalizedSeason,
+              year: playerData.year,
+              tryoutId: normalizedTryoutId,
+              parent: parent._id,
+            },
+            {
+              $set: {
+                paymentStatus: 'paid',
+                paymentComplete: true,
+                paymentId: paymentResult.id,
+                amountPaid: perPlayerAmount,
+                cardLast4: cardDetails.last_4 || '',
+                cardBrand: cardDetails.card_brand || '',
+                paymentDate: new Date(),
+                registrationComplete: true,
+                updatedAt: new Date(),
+                parent: parent._id,
+              },
+            },
+            { upsert: true, new: true, session },
+          );
+          console.log('✅ Created/updated training registration');
+        }
+      }
+
+      // Send training payment confirmation email
+      try {
+        const playerCount = players.length;
+        const totalAmount = amount / 100;
+
+        await sendEmail({
+          to: email,
+          subject: 'Training Payment Confirmation - Partizan Basketball',
+          html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+            </div>
+            
+            <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+              <h1 style="margin: 0;">🏀 Training Payment Confirmed!</h1>
+            </div>
+            
+            <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
+              <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
+              
+              <p style="font-size: 16px;">Thank you for your training payment! Your registration has been confirmed.</p>
+              
+              <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
+                <h3 style="margin-top: 0; color: #594230;">Training Payment Details</h3>
+                <p style="margin: 8px 0;"><strong>Training Program:</strong> ${players[0]?.season || 'Basketball Training'}</p>
+                <p style="margin: 8px 0;"><strong>Year:</strong> ${players[0]?.year || new Date().getFullYear()}</p>
+                <p style="margin: 8px 0;"><strong>Number of Players:</strong> ${playerCount}</p>
+                <p style="margin: 8px 0;"><strong>Total Amount Paid:</strong> $${totalAmount}</p>
+                <p style="margin: 8px 0;"><strong>Payment ID:</strong> ${paymentResult.id}</p>
+                <p style="margin: 8px 0;"><strong>Players Registered:</strong></p>
+                <ul style="margin: 8px 0;">
+                  ${updatedPlayers.map((p) => `<li>${p.fullName}</li>`).join('')}
+                </ul>
+              </div>
+              
+              <p style="font-size: 16px;"><strong>Training Information:</strong></p>
+              <ul style="font-size: 14px;">
+                <li>You will receive training schedule information within the next week</li>
+                <li>Training sessions will focus on skill development and fundamentals</li>
+                <li>Please arrive 15 minutes early for your first session</li>
+                <li>Bring basketball shoes, water bottle, and appropriate workout attire</li>
+              </ul>
+              
+              <p style="font-size: 14px; color: #555;">If you have any questions about the training program, please contact us at partizanhoops@proton.me</p>
+              
+              <p style="font-size: 16px; font-weight: bold;">We look forward to training with you! 🏀</p>
+            </div>
+          </div>
+        `,
+        });
+
+        console.log('Training payment confirmation email sent successfully');
+      } catch (emailError) {
+        console.error(
+          'Failed to send training confirmation email:',
+          emailError,
+        );
+      }
+
+      await session.commitTransaction();
+
+      res.status(200).json({
+        success: true,
+        paymentId: payment._id,
+        parentUpdated: true,
+        playersUpdated: updatedPlayers.length,
+        playerIds: updatedPlayers.map((p) => p._id.toString()),
+        players: updatedPlayers.map((p) => ({
+          _id: p._id,
+          fullName: p.fullName,
+          paymentStatus: p.paymentStatus,
+          paymentComplete: p.paymentComplete,
+          registrationComplete: p.registrationComplete,
+          seasons: p.seasons.filter(
+            (s) =>
+              s.season?.toLowerCase().includes('training') ||
+              s.season === 'Basketball Training' ||
+              s.season === 'Training',
+          ),
+        })),
+        status: 'processed',
+        receiptUrl: paymentResult.receiptUrl,
+        message: 'Training payment processed successfully',
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      console.error('Training payment processing error:', {
+        message: error.message,
+        stack: error.stack,
+        requestBody: {
+          playerIds: players.map((p) => p.playerId),
+          season: players[0]?.season,
+          year: players[0]?.year,
+          tryoutId: players[0]?.tryoutId,
+          amount: amount / 100,
+        },
+        user: req.user,
+      });
+      res.status(400).json({
+        success: false,
+        error: 'Training payment processing failed',
+        details:
+          process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    } finally {
+      session.endSession();
+    }
+  },
 );
 
 // PROCESS PAYMENTS FOR LOGGED-IN USERS
@@ -1442,7 +1996,7 @@ router.post('/process', authenticate, async (req, res) => {
         await Parent.updateOne(
           { _id: parentId },
           { $set: { squareCustomerId: customerId } },
-          { session }
+          { session },
         );
       } catch (squareError) {
         console.error('Error creating Square customer:', squareError);
@@ -1515,12 +2069,12 @@ router.post('/process', authenticate, async (req, res) => {
         continue;
       }
 
-      // Update player season
-      const seasonIndex = player.seasons.findIndex(
+      // 🚨 Check for pending season first
+      const pendingSeasonIndex = player.seasons.findIndex(
         (s) =>
           s.season === playerData.season &&
           s.year === playerData.year &&
-          s.tryoutId === playerData.tryoutId
+          s.paymentStatus === 'pending',
       );
 
       const seasonUpdate = {
@@ -1534,16 +2088,29 @@ router.post('/process', authenticate, async (req, res) => {
         cardLast4: cardDetails?.last_4 || 'N/A',
         cardBrand: cardDetails?.card_brand || 'N/A',
         paymentDate: new Date(),
-        registrationDate:
-          seasonIndex >= 0
-            ? player.seasons[seasonIndex].registrationDate
-            : new Date(),
       };
 
-      if (seasonIndex >= 0) {
-        player.seasons[seasonIndex] = seasonUpdate;
+      if (pendingSeasonIndex >= 0) {
+        // Update pending season
+        seasonUpdate.registrationDate =
+          player.seasons[pendingSeasonIndex].registrationDate;
+        player.seasons[pendingSeasonIndex] = seasonUpdate;
+        console.log('✅ Updated pending season for player:', player.fullName);
       } else {
-        player.seasons.push(seasonUpdate);
+        // Add new season or update existing
+        const existingSeasonIndex = player.seasons.findIndex(
+          (s) =>
+            s.season === playerData.season &&
+            s.year === playerData.year &&
+            s.tryoutId === playerData.tryoutId,
+        );
+
+        if (existingSeasonIndex >= 0) {
+          player.seasons[existingSeasonIndex] = seasonUpdate;
+        } else {
+          seasonUpdate.registrationDate = new Date();
+          player.seasons.push(seasonUpdate);
+        }
       }
 
       // Update top-level player fields
@@ -1554,28 +2121,55 @@ router.post('/process', authenticate, async (req, res) => {
       const savedPlayer = await player.save({ session });
       updatedPlayers.push(savedPlayer);
 
-      // Update registration
-      await Registration.findOneAndUpdate(
-        {
-          player: player._id,
-          season: playerData.season,
-          year: playerData.year,
-          tryoutId: playerData.tryoutId,
-        },
-        {
-          $set: {
-            paymentStatus: 'paid',
-            paymentComplete: true,
-            paymentId: paymentResult.id,
-            amountPaid: perPlayerAmount,
-            cardLast4: cardDetails?.last_4 || 'N/A',
-            cardBrand: cardDetails?.card_brand || 'N/A',
-            paymentDate: new Date(),
-            registrationComplete: true,
+      // Update registration with pending check
+      const pendingRegistration = await Registration.findOne({
+        player: player._id,
+        season: playerData.season,
+        year: playerData.year,
+        paymentStatus: 'pending',
+      }).session(session);
+
+      if (pendingRegistration) {
+        await Registration.findByIdAndUpdate(
+          pendingRegistration._id,
+          {
+            $set: {
+              tryoutId: playerData.tryoutId || pendingRegistration.tryoutId,
+              paymentStatus: 'paid',
+              paymentComplete: true,
+              paymentId: paymentResult.id,
+              amountPaid: perPlayerAmount,
+              cardLast4: cardDetails?.last_4 || 'N/A',
+              cardBrand: cardDetails?.card_brand || 'N/A',
+              paymentDate: new Date(),
+              registrationComplete: true,
+            },
           },
-        },
-        { upsert: true, session }
-      );
+          { session },
+        );
+      } else {
+        await Registration.findOneAndUpdate(
+          {
+            player: player._id,
+            season: playerData.season,
+            year: playerData.year,
+            tryoutId: playerData.tryoutId,
+          },
+          {
+            $set: {
+              paymentStatus: 'paid',
+              paymentComplete: true,
+              paymentId: paymentResult.id,
+              amountPaid: perPlayerAmount,
+              cardLast4: cardDetails?.last_4 || 'N/A',
+              cardBrand: cardDetails?.card_brand || 'N/A',
+              paymentDate: new Date(),
+              registrationComplete: true,
+            },
+          },
+          { upsert: true, session },
+        );
+      }
     }
 
     // Create payment record
