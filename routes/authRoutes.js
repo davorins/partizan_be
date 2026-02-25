@@ -3,7 +3,12 @@ const bcrypt = require('bcryptjs');
 const { body, validationResult, query, param } = require('express-validator');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const cloudinary = require('cloudinary').v2;
+const {
+  uploadToR2,
+  deleteFromR2,
+  getKeyFromUrl,
+  isR2Url,
+} = require('../utils/r2');
 const Parent = require('../models/Parent');
 const Player = require('../models/Player');
 const Payment = require('../models/Payment');
@@ -1921,93 +1926,277 @@ router.get('/players/by-parent/:parentId', authenticate, async (req, res) => {
 });
 
 // Get parents with optional query parameters
+// Get parents with optional query parameters
 router.get('/parents', authenticate, async (req, res) => {
   try {
-    const { isCoach, season, year, name, email, phone, status, role } =
-      req.query;
+    const {
+      season,
+      year,
+      name,
+      email,
+      phone,
+      aauNumber,
+      status,
+      role,
+      paymentStatus,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 10,
+    } = req.query;
 
     const query = {};
 
-    if (isCoach !== undefined) {
-      query.isCoach = isCoach === 'true';
-    }
-    if (season && year) {
-      query['players.season'] = season;
-      query['players.year'] = year;
-    }
-
-    if (name) {
-      query.fullName = { $regex: name, $options: 'i' };
-    }
-
-    if (email) {
-      query.email = { $regex: email, $options: 'i' };
-    }
-
-    if (phone) {
-      query.phone = { $regex: phone, $options: 'i' };
-    }
-
-    if (status) {
-      query.status = status;
-    }
-
+    // ── Role filter ────────────────────────────────────────────────────────────
     if (role) {
-      query.role = role;
+      if (role === 'coach') {
+        query.isCoach = true;
+      } else if (role === 'parent') {
+        query.isCoach = { $ne: true };
+        query.role = { $ne: 'admin' };
+      } else if (role === 'admin') {
+        query.role = 'admin';
+      }
     }
+
+    // ── Text search filters ────────────────────────────────────────────────────
+    if (name) query.fullName = { $regex: name, $options: 'i' };
+    if (email) query.email = { $regex: email, $options: 'i' };
+    if (phone) {
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone) query.phone = { $regex: cleanPhone, $options: 'i' };
+    }
+    if (aauNumber) {
+      query.aauNumber = { $regex: aauNumber.trim(), $options: 'i' };
+    }
+
+    // ── Date range filter ──────────────────────────────────────────────────────
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) {
+        const start = new Date(dateFrom);
+        if (!isNaN(start.getTime())) {
+          start.setHours(0, 0, 0, 0);
+          query.createdAt.$gte = start;
+        }
+      }
+      if (dateTo) {
+        const end = new Date(dateTo);
+        if (!isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          query.createdAt.$lte = end;
+        }
+      }
+      if (!query.createdAt.$gte && !query.createdAt.$lte) {
+        delete query.createdAt;
+      }
+    }
+
+    // ── Fetch active SeasonEvents (single source of truth) ────────────────────
+    const activeSeasonEvents = await SeasonEvent.find({
+      registrationOpen: true,
+    }).lean();
+
+    // ── ID-based filters (status, paymentStatus, season) ──────────────────────
+    const idFilterSets = [];
+    let inactiveExclude = null;
+
+    // Season / year filter
+    if (season && year) {
+      const seasonParentIds = await Registration.distinct('parent', {
+        season,
+        year: parseInt(year),
+      });
+      idFilterSets.push(new Set(seasonParentIds.map((id) => id.toString())));
+    }
+
+    // ── Status filter — driven by active SeasonEvents ──────────────────────────
+    if (status && activeSeasonEvents.length > 0) {
+      // Build $or conditions for each active event
+      const activeEventConditions = activeSeasonEvents.map((event) => ({
+        season: { $regex: new RegExp(event.season, 'i') },
+        year: event.year,
+        registrationComplete: true,
+      }));
+
+      // Parents registered for ANY active season event
+      const registeredIds = await Registration.distinct('parent', {
+        $or: activeEventConditions,
+      });
+
+      // Parents registered for ANY active season event AND at least one unpaid
+      const unpaidIds = await Registration.distinct('parent', {
+        $or: activeEventConditions,
+        paymentComplete: { $ne: true },
+      });
+
+      const unpaidSet = new Set(unpaidIds.map((id) => id.toString()));
+
+      if (status === 'Active') {
+        // Registered for an active event AND fully paid (not in unpaid set)
+        const activeIds = registeredIds.filter(
+          (id) => !unpaidSet.has(id.toString()),
+        );
+        idFilterSets.push(new Set(activeIds.map((id) => id.toString())));
+      } else if (status === 'Pending Payment') {
+        // Registered for an active event AND at least one unpaid
+        idFilterSets.push(unpaidSet);
+      } else if (status === 'Inactive') {
+        // NOT registered for any active season event
+        inactiveExclude = registeredIds;
+      }
+    } else if (status && activeSeasonEvents.length === 0) {
+      // No active events — everyone is Inactive
+      if (status === 'Active' || status === 'Pending Payment') {
+        // Return empty result set
+        idFilterSets.push(new Set());
+      }
+      // 'Inactive' with no active events = all parents, no filter needed
+    }
+
+    // Payment status filter
+    if (paymentStatus) {
+      if (paymentStatus === 'paid') {
+        const paidIds = await Registration.distinct('parent', {
+          paymentComplete: true,
+        });
+        idFilterSets.push(new Set(paidIds.map((id) => id.toString())));
+      } else if (paymentStatus === 'notPaid') {
+        const unpaidRegistrationParentIds = await Registration.distinct(
+          'parent',
+          { paymentComplete: { $ne: true } },
+        );
+        idFilterSets.push(
+          new Set(unpaidRegistrationParentIds.map((id) => id.toString())),
+        );
+      }
+    }
+
+    // ── Apply ID filter sets to query._id ──────────────────────────────────────
+    if (idFilterSets.length > 0) {
+      let intersection = idFilterSets[0];
+      for (let i = 1; i < idFilterSets.length; i++) {
+        intersection = new Set(
+          [...intersection].filter((id) => idFilterSets[i].has(id)),
+        );
+      }
+      if (inactiveExclude) {
+        const excludeSet = new Set(inactiveExclude.map((id) => id.toString()));
+        intersection = new Set(
+          [...intersection].filter((id) => !excludeSet.has(id)),
+        );
+      }
+      query._id = {
+        $in: [...intersection].map((id) => new mongoose.Types.ObjectId(id)),
+      };
+    } else if (inactiveExclude) {
+      query._id = { $nin: inactiveExclude };
+    }
+
+    // ── Pagination ─────────────────────────────────────────────────────────────
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await Parent.countDocuments(query);
 
     const parents = await Parent.find(query)
-      .populate('players')
-      .sort({ createdAt: -1 });
+      .populate({
+        path: 'players',
+        select:
+          'fullName gender dob seasons paymentComplete paymentStatus registrationYear season',
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
 
-    res.json(parents);
-  } catch (error) {
-    console.error('Error fetching parents:', error);
-    res.status(500).json({ error: 'Failed to fetch parents' });
-  }
-});
+    // ── Attach computed status for display (mirrors frontend statusUtils) ──────
+    const parentsWithStatus = parents.map((parent) => {
+      try {
+        if (parent.isCoach) {
+          return { ...parent, status: 'Active', paymentStatus: null };
+        }
 
-// Get coaches
-router.get('/coaches', authenticate, async (req, res) => {
-  try {
-    const coaches = await Parent.find({ isCoach: true })
-      .populate('players')
-      .sort({ fullName: 1 });
+        const players = parent.players || [];
+        if (players.length === 0) {
+          return { ...parent, status: 'Inactive', paymentStatus: null };
+        }
 
-    res.json(coaches);
-  } catch (error) {
-    console.error('Error fetching coaches:', error);
-    res.status(500).json({ error: 'Failed to fetch coaches' });
-  }
-});
+        let hasActive = false;
+        let hasPending = false;
 
-// Update Player data by ID
-router.put('/player/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
+        for (const player of players) {
+          // Check player against each active SeasonEvent
+          for (const event of activeSeasonEvents) {
+            const eventRegex = new RegExp(event.season, 'i');
+            let reg = null;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid player ID format' });
-    }
+            // Check seasons array first
+            if (player.seasons && player.seasons.length > 0) {
+              reg =
+                player.seasons.find(
+                  (s) => eventRegex.test(s.season) && s.year === event.year,
+                ) || null;
+            }
 
-    const updatedPlayer = await Player.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
+            // Legacy top-level fallback
+            if (
+              !reg &&
+              player.season &&
+              eventRegex.test(player.season) &&
+              player.registrationYear === event.year
+            ) {
+              reg = {
+                paymentComplete: player.paymentComplete,
+              };
+            }
+
+            if (reg) {
+              if (reg.paymentComplete === true) {
+                hasActive = true;
+              } else {
+                hasPending = true;
+              }
+              break; // Found a match for this player, move to next player
+            }
+          }
+        }
+
+        if (hasPending) {
+          return {
+            ...parent,
+            status: 'Pending Payment',
+            paymentStatus: 'notPaid',
+          };
+        }
+        if (hasActive) {
+          return { ...parent, status: 'Active', paymentStatus: 'paid' };
+        }
+        return { ...parent, status: 'Inactive', paymentStatus: null };
+      } catch (err) {
+        console.error(`Error processing parent ${parent._id}:`, err);
+        return { ...parent, status: 'Inactive', paymentStatus: null };
+      }
     });
-
-    if (!updatedPlayer) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
 
     res.json({
-      message: 'Player updated successfully',
-      player: updatedPlayer,
+      data: parentsWithStatus,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        hasNextPage: pageNum < Math.ceil(total / limitNum),
+        hasPrevPage: pageNum > 1,
+      },
     });
   } catch (error) {
-    console.error('Update error:', error);
+    console.error('❌ Error fetching parents:', error);
     res.status(500).json({
-      error: 'Failed to update player',
-      details: error.message,
+      error: 'Failed to fetch parents',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 });
@@ -2015,7 +2204,7 @@ router.put('/player/:id', authenticate, async (req, res) => {
 // Get all guardians
 router.get('/guardians', authenticate, async (req, res) => {
   try {
-    const { season, year, name } = req.query;
+    const { season, year, name, page = 1, limit = 10 } = req.query;
 
     const query = {
       $or: [
@@ -2036,8 +2225,19 @@ router.get('/guardians', authenticate, async (req, res) => {
       ];
     }
 
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count
+    const total = await Parent.countDocuments(query);
+
+    // Get paginated results
     const parentsWithGuardians = await Parent.find(query)
       .populate('players')
+      .skip(skip)
+      .limit(limitNum)
       .lean();
 
     const allGuardians = parentsWithGuardians.flatMap((parent) => {
@@ -2046,6 +2246,7 @@ router.get('/guardians', authenticate, async (req, res) => {
         _id: parent._id.toString(),
         relationship: parent.relationship || 'Primary Guardian',
         isPrimary: true,
+        type: 'guardian',
       };
 
       const additionalGuardians =
@@ -2055,12 +2256,23 @@ router.get('/guardians', authenticate, async (req, res) => {
           parentId: parent._id.toString(),
           players: parent.players,
           isPrimary: false,
+          type: 'guardian',
         })) || [];
 
       return [mainGuardian, ...additionalGuardians];
     });
 
-    res.json(allGuardians);
+    res.json({
+      data: allGuardians,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        hasNextPage: pageNum < Math.ceil(total / limitNum),
+        hasPrevPage: pageNum > 1,
+      },
+    });
   } catch (error) {
     console.error('Error fetching guardians:', error);
     res.status(500).json({ error: 'Failed to fetch guardians' });
@@ -2262,26 +2474,65 @@ router.put('/parent/:id/avatar', authenticate, async (req, res) => {
   try {
     const { avatarUrl } = req.body;
 
-    if (!avatarUrl || !avatarUrl.includes('res.cloudinary.com')) {
-      return res.status(400).json({ error: 'Invalid avatar URL format' });
+    console.log('📝 Received avatar update request:', {
+      parentId: req.params.id,
+      avatarUrl,
+      userId: req.user.id,
+      userRole: req.user.role,
+    });
+
+    if (!avatarUrl) {
+      return res.status(400).json({ error: 'Avatar URL is required' });
     }
 
-    const parent = await Parent.findByIdAndUpdate(
-      req.params.id,
-      { avatar: avatarUrl },
-      { new: true },
-    );
+    // Clean the URL if it's malformed
+    let cleanUrl = avatarUrl;
+    if (cleanUrl.includes('https//')) {
+      cleanUrl = cleanUrl.replace('https//', 'https://');
+    }
 
+    // If it has the double domain issue, extract just the R2 part
+    if (cleanUrl.includes('partizan-be.onrender.comhttps://')) {
+      cleanUrl = cleanUrl.split('partizan-be.onrender.com')[1];
+    }
+
+    console.log('🧹 Cleaned URL:', cleanUrl);
+
+    const parent = await Parent.findById(req.params.id);
     if (!parent) {
       return res.status(404).json({ error: 'Parent not found' });
     }
 
+    // Check if user is authorized
+    if (req.user.role !== 'admin' && req.user.id !== req.params.id) {
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to update this avatar' });
+    }
+
+    // If there's an old avatar from R2, delete it (optional cleanup)
+    if (parent.avatar && isR2Url(parent.avatar)) {
+      try {
+        await deleteFromR2(parent.avatar);
+        console.log('Old avatar deleted from R2:', parent.avatar);
+      } catch (deleteError) {
+        console.error('Error deleting old avatar:', deleteError);
+        // Continue with update even if delete fails
+      }
+    }
+
+    parent.avatar = cleanUrl;
+    await parent.save();
+
+    console.log('✅ Avatar updated successfully for parent:', parent._id);
+
     res.json({
       success: true,
+      message: 'Avatar updated successfully',
       parent,
     });
   } catch (error) {
-    console.error('Avatar update error:', error);
+    console.error('❌ Avatar update error:', error);
     res.status(500).json({ error: 'Failed to update avatar' });
   }
 });
@@ -2290,15 +2541,28 @@ router.put('/parent/:id/avatar', authenticate, async (req, res) => {
 router.delete('/parent/:id/avatar', authenticate, async (req, res) => {
   try {
     const parent = await Parent.findById(req.params.id);
-
     if (!parent) {
       return res.status(404).json({ error: 'Parent not found' });
     }
 
+    // Check if user is authorized
+    if (req.user.role !== 'admin' && req.user.id !== req.params.id) {
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to delete this avatar' });
+    }
+
     const avatarUrl = parent.avatar;
-    if (avatarUrl && avatarUrl.includes('res.cloudinary.com')) {
-      const publicId = avatarUrl.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+
+    // Only delete from R2 if it's an R2 URL
+    if (avatarUrl && isR2Url(avatarUrl)) {
+      try {
+        await deleteFromR2(avatarUrl);
+        console.log('Avatar deleted from R2');
+      } catch (deleteError) {
+        console.error('Error deleting from R2:', deleteError);
+        // Continue even if delete fails - we still want to remove from DB
+      }
     }
 
     parent.avatar = null;
@@ -2306,6 +2570,7 @@ router.delete('/parent/:id/avatar', authenticate, async (req, res) => {
 
     res.json({
       success: true,
+      message: 'Avatar deleted successfully',
       parent,
     });
   } catch (error) {
@@ -2347,17 +2612,39 @@ router.put('/player/:id/avatar', authenticate, async (req, res) => {
 router.delete('/player/:id/avatar', authenticate, async (req, res) => {
   try {
     const player = await Player.findById(req.params.id);
-
     if (!player) {
       return res.status(404).json({ error: 'Player not found' });
     }
 
-    const avatarUrl = player.avatar;
-    if (avatarUrl && avatarUrl.includes('res.cloudinary.com')) {
-      const publicId = avatarUrl.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+    // Check if user is authorized
+    if (
+      req.user.role !== 'admin' &&
+      req.user.id !== player.parentId.toString()
+    ) {
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to delete this avatar' });
     }
 
+    const avatarUrl = player.avatar;
+
+    // Only delete from R2 if it's an R2 URL and not a default avatar
+    if (
+      avatarUrl &&
+      isR2Url(avatarUrl) &&
+      !avatarUrl.includes('girl.png') &&
+      !avatarUrl.includes('boy.png')
+    ) {
+      try {
+        await deleteFromR2(avatarUrl);
+        console.log('Player avatar deleted from R2');
+      } catch (deleteError) {
+        console.error('Error deleting from R2:', deleteError);
+        // Continue even if delete fails
+      }
+    }
+
+    // Set to default avatar based on gender
     const defaultAvatar =
       player.gender === 'Female'
         ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
@@ -2368,7 +2655,9 @@ router.delete('/player/:id/avatar', authenticate, async (req, res) => {
 
     res.json({
       success: true,
+      message: 'Player avatar deleted successfully',
       player,
+      defaultAvatar,
     });
   } catch (error) {
     console.error('Player avatar deletion error:', error);
@@ -5371,6 +5660,567 @@ router.post('/players/:playerId/add-season', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error adding season:', error);
     res.status(500).json({ error: 'Failed to add season' });
+  }
+});
+
+// Delete parent account and all associated data
+router.delete('/parent/:id', authenticate, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { id } = req.params;
+
+    // Check if user is authorized
+    if (req.user.role !== 'admin' && req.user.id !== id) {
+      await session.abortTransaction();
+      return res.status(403).json({
+        error: 'Not authorized to delete this account',
+      });
+    }
+
+    // Find the parent to get their players and guardians
+    const parent = await Parent.findById(id).session(session);
+    if (!parent) {
+      await session.abortTransaction();
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+
+    // 🔥 FIX: Delete guardian avatars from R2
+    if (parent.additionalGuardians && parent.additionalGuardians.length > 0) {
+      for (const guardian of parent.additionalGuardians) {
+        if (guardian.avatar && isR2Url(guardian.avatar)) {
+          try {
+            await deleteFromR2(guardian.avatar);
+            console.log(`Guardian avatar deleted from R2: ${guardian.avatar}`);
+          } catch (deleteError) {
+            console.error(
+              `Error deleting guardian avatar from R2: ${guardian.avatar}`,
+              deleteError,
+            );
+            // Continue with deletion even if avatar delete fails
+          }
+        }
+      }
+    }
+
+    // 🔥 FIX: Delete player avatars from R2
+    if (parent.players && parent.players.length > 0) {
+      // Get all players associated with this parent
+      const players = await Player.find({
+        _id: { $in: parent.players },
+      }).session(session);
+
+      for (const player of players) {
+        // Delete player avatar if it exists and is not a default avatar
+        if (
+          player.avatar &&
+          isR2Url(player.avatar) &&
+          !player.avatar.includes('girl.png') &&
+          !player.avatar.includes('boy.png')
+        ) {
+          try {
+            await deleteFromR2(player.avatar);
+            console.log(`Player avatar deleted from R2: ${player.avatar}`);
+          } catch (deleteError) {
+            console.error(
+              `Error deleting player avatar from R2: ${player.avatar}`,
+              deleteError,
+            );
+            // Continue with deletion even if avatar delete fails
+          }
+        }
+      }
+
+      // Delete all players associated with this parent
+      await Player.deleteMany({
+        _id: { $in: parent.players },
+      }).session(session);
+    }
+
+    // Delete all registrations associated with this parent
+    await Registration.deleteMany({
+      parent: id,
+    }).session(session);
+
+    // Delete all payments associated with this parent
+    await Payment.deleteMany({
+      parentId: id,
+    }).session(session);
+
+    // Delete parent avatar from R2 if exists
+    if (parent.avatar && isR2Url(parent.avatar)) {
+      try {
+        await deleteFromR2(parent.avatar);
+        console.log('Parent avatar deleted from R2');
+      } catch (deleteError) {
+        console.error('Error deleting avatar from R2:', deleteError);
+        // Continue with deletion even if avatar delete fails
+      }
+    }
+
+    // Finally, delete the parent
+    await Parent.findByIdAndDelete(id).session(session);
+
+    await session.commitTransaction();
+
+    console.log(`✅ Parent account deleted: ${id} (${parent.email})`);
+
+    res.json({
+      success: true,
+      message: 'Account and all associated data deleted successfully',
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting parent account:', error);
+    res.status(500).json({
+      error: 'Failed to delete account',
+      details:
+        process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  } finally {
+    session.endSession();
+  }
+});
+
+// Get paginated players with filters (NEW ROUTE)
+router.get(
+  '/players/paginated',
+  authenticate,
+  [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('search').optional().isString(),
+    query('gender').optional().isString(),
+    query('grade').optional().isString(),
+    query('age').optional().isInt().toInt(),
+    query('status').optional().isString(),
+    query('school').optional().isString(),
+    query('season').optional().isString(),
+    query('year').optional().isInt().toInt(),
+    query('sort').optional().isString(),
+    query('dateFrom').optional().isString(),
+    query('dateTo').optional().isString(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        search = '',
+        gender,
+        grade,
+        age,
+        status,
+        school,
+        season,
+        year,
+        sort = 'recent',
+        dateFrom,
+        dateTo,
+      } = req.query;
+
+      // ── Season helpers (shared across status + transform) ──────────────────
+      const getSeasonInfo = () => {
+        const month = new Date().getMonth() + 1;
+        const currentSeason =
+          month >= 3 && month <= 5
+            ? 'Spring'
+            : month >= 6 && month <= 8
+              ? 'Summer'
+              : month >= 9 && month <= 11
+                ? 'Fall'
+                : 'Winter';
+        const currentYear = new Date().getFullYear();
+        const SEASON_ORDER = ['Winter', 'Spring', 'Summer', 'Fall'];
+        const nextSeason =
+          SEASON_ORDER[(SEASON_ORDER.indexOf(currentSeason) + 1) % 4];
+        const nextSeasonYear =
+          currentSeason === 'Fall' ? currentYear + 1 : currentYear;
+        return { currentSeason, currentYear, nextSeason, nextSeasonYear };
+      };
+
+      const extractBase = (name = '') => {
+        const l = name.toLowerCase();
+        if (l.includes('spring')) return 'Spring';
+        if (l.includes('summer')) return 'Summer';
+        if (l.includes('fall')) return 'Fall';
+        if (l.includes('winter')) return 'Winter';
+        return name;
+      };
+
+      const sr = (base) => new RegExp(base, 'i');
+
+      // ── Build filter clauses ───────────────────────────────────────────────
+      // Every filter appends a clause to this array.
+      // At the end we combine with $and so ALL filters must be satisfied.
+      // This means filters never overwrite each other regardless of combination.
+      const clauses = [];
+
+      // ── Search ─────────────────────────────────────────────────────────────
+      if (search?.trim()) {
+        clauses.push({ fullName: { $regex: search.trim(), $options: 'i' } });
+      }
+
+      // ── Gender ─────────────────────────────────────────────────────────────
+      if (gender) {
+        clauses.push({ gender });
+      }
+
+      // ── Grade ──────────────────────────────────────────────────────────────
+      // DB may store grade as "5th" (formatted) or "5" (raw number string)
+      // so we match all variants
+      if (grade) {
+        const gradeNum = grade.replace(/\D/g, '');
+        if (gradeNum) {
+          clauses.push({
+            $or: [
+              { grade: grade },
+              { grade: gradeNum },
+              { grade: parseInt(gradeNum, 10) },
+            ],
+          });
+        } else {
+          clauses.push({ grade });
+        }
+      }
+
+      // ── Age ────────────────────────────────────────────────────────────────
+      // Age is not stored — derive a dob range
+      if (age !== undefined && age !== null) {
+        const ageNum = parseInt(age, 10);
+        if (!isNaN(ageNum)) {
+          const today = new Date();
+          const dobEnd = new Date(
+            today.getFullYear() - ageNum,
+            today.getMonth(),
+            today.getDate(),
+          );
+          const dobStart = new Date(
+            today.getFullYear() - ageNum - 1,
+            today.getMonth(),
+            today.getDate() + 1,
+          );
+          clauses.push({ dob: { $gte: dobStart, $lte: dobEnd } });
+        }
+      }
+
+      // ── Status ─────────────────────────────────────────────────────────────
+      // Mirrors getPlayerStatus() in season.ts:
+      //   Active          = current OR next season reg, paymentComplete: true
+      //   Pending Payment = current OR next season reg, paymentComplete: false
+      //   Inactive        = no registration for current or next season
+      if (status) {
+        const { currentSeason, currentYear, nextSeason, nextSeasonYear } =
+          getSeasonInfo();
+
+        if (status === 'Active' || status === 'Pending Payment') {
+          const isPaid = status === 'Active';
+          const paymentCondition = isPaid ? true : { $ne: true };
+
+          clauses.push({
+            $or: [
+              // seasons array — current season
+              {
+                seasons: {
+                  $elemMatch: {
+                    season: sr(currentSeason),
+                    year: currentYear,
+                    paymentComplete: paymentCondition,
+                  },
+                },
+              },
+              // seasons array — next season
+              {
+                seasons: {
+                  $elemMatch: {
+                    season: sr(nextSeason),
+                    year: nextSeasonYear,
+                    paymentComplete: paymentCondition,
+                  },
+                },
+              },
+              // Legacy top-level — current season
+              {
+                $or: [
+                  { seasons: { $exists: false } },
+                  { seasons: { $size: 0 } },
+                ],
+                season: sr(currentSeason),
+                registrationYear: currentYear,
+                paymentComplete: paymentCondition,
+              },
+              // Legacy top-level — next season
+              {
+                $or: [
+                  { seasons: { $exists: false } },
+                  { seasons: { $size: 0 } },
+                ],
+                season: sr(nextSeason),
+                registrationYear: nextSeasonYear,
+                paymentComplete: paymentCondition,
+              },
+            ],
+          });
+        } else if (status === 'Inactive') {
+          // Collect all IDs that ARE registered for current or next season
+          const [seasonArrayIds, legacyIds] = await Promise.all([
+            Player.distinct('_id', {
+              $or: [
+                {
+                  seasons: {
+                    $elemMatch: {
+                      season: sr(currentSeason),
+                      year: currentYear,
+                    },
+                  },
+                },
+                {
+                  seasons: {
+                    $elemMatch: {
+                      season: sr(nextSeason),
+                      year: nextSeasonYear,
+                    },
+                  },
+                },
+              ],
+            }),
+            Player.distinct('_id', {
+              $or: [
+                { season: sr(currentSeason), registrationYear: currentYear },
+                { season: sr(nextSeason), registrationYear: nextSeasonYear },
+              ],
+            }),
+          ]);
+
+          const allRegisteredIds = [
+            ...new Set([
+              ...seasonArrayIds.map((id) => id.toString()),
+              ...legacyIds.map((id) => id.toString()),
+            ]),
+          ];
+
+          clauses.push({ _id: { $nin: allRegisteredIds } });
+        }
+      }
+
+      // ── School ─────────────────────────────────────────────────────────────
+      if (school?.trim()) {
+        clauses.push({
+          schoolName: { $regex: school.trim(), $options: 'i' },
+        });
+      }
+
+      // ── Season / Year ──────────────────────────────────────────────────────
+      // Skip when status filter already applies a seasons condition
+      if (!status) {
+        if (season && year) {
+          clauses.push({
+            seasons: {
+              $elemMatch: { season, year: parseInt(year, 10) },
+            },
+          });
+        } else if (season) {
+          clauses.push({ 'seasons.season': season });
+        } else if (year) {
+          clauses.push({ 'seasons.year': parseInt(year, 10) });
+        }
+      }
+
+      // ── Date range (createdAt) ─────────────────────────────────────────────
+      if (dateFrom || dateTo) {
+        const dateClause = {};
+        if (dateFrom) {
+          const start = new Date(dateFrom);
+          if (!isNaN(start.getTime())) {
+            start.setHours(0, 0, 0, 0);
+            dateClause.$gte = start;
+          }
+        }
+        if (dateTo) {
+          const end = new Date(dateTo);
+          if (!isNaN(end.getTime())) {
+            end.setHours(23, 59, 59, 999);
+            dateClause.$lte = end;
+          }
+        }
+        if (dateClause.$gte || dateClause.$lte) {
+          clauses.push({ createdAt: dateClause });
+        }
+      }
+
+      // ── Combine all clauses ────────────────────────────────────────────────
+      // $and ensures every active filter must be satisfied simultaneously.
+      // A single clause is applied directly to avoid unnecessary $and wrapping.
+      const query =
+        clauses.length === 0
+          ? {}
+          : clauses.length === 1
+            ? clauses[0]
+            : { $and: clauses };
+
+      // ── Pagination ─────────────────────────────────────────────────────────
+      const pageNum = Math.max(1, parseInt(page, 10));
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
+      const skip = (pageNum - 1) * limitNum;
+
+      // ── Sort ───────────────────────────────────────────────────────────────
+      // recentlyViewed is handled client-side (localStorage)
+      let sortOptions = {};
+      switch (sort) {
+        case 'asc':
+          sortOptions = { fullName: 1 };
+          break;
+        case 'desc':
+          sortOptions = { fullName: -1 };
+          break;
+        case 'recentlyUpdated':
+          sortOptions = { updatedAt: -1 };
+          break;
+        case 'recentlyAdded':
+          sortOptions = { createdAt: -1 };
+          break;
+        case 'recent':
+        default:
+          sortOptions = { 'seasons.registrationDate': -1, createdAt: -1 };
+          break;
+      }
+
+      // ── Execute ────────────────────────────────────────────────────────────
+      const [total, players] = await Promise.all([
+        Player.countDocuments(query),
+        Player.find(query)
+          .populate('parentId', 'fullName email phone')
+          .sort(sortOptions)
+          .skip(skip)
+          .limit(limitNum)
+          .lean(),
+      ]);
+
+      // ── Transform ──────────────────────────────────────────────────────────
+      const {
+        currentSeason: cs,
+        currentYear: cy,
+        nextSeason: ns,
+        nextSeasonYear: nsy,
+      } = getSeasonInfo();
+
+      const deriveStatus = (player) => {
+        if (player.seasons && player.seasons.length > 0) {
+          const currentReg = player.seasons.find(
+            (s) => extractBase(s.season) === cs && s.year === cy,
+          );
+          if (currentReg) {
+            return currentReg.paymentComplete ? 'Active' : 'Pending Payment';
+          }
+          const nextReg = player.seasons.find(
+            (s) => extractBase(s.season) === ns && s.year === nsy,
+          );
+          if (nextReg) {
+            return nextReg.paymentComplete ? 'Active' : 'Pending Payment';
+          }
+          return 'Inactive';
+        }
+        // Legacy top-level fallback
+        const base = extractBase(player.season);
+        if (base === cs && player.registrationYear === cy) {
+          return player.paymentComplete ? 'Active' : 'Pending Payment';
+        }
+        if (base === ns && player.registrationYear === nsy) {
+          return player.paymentComplete ? 'Active' : 'Pending Payment';
+        }
+        return 'Inactive';
+      };
+
+      const transformedPlayers = players.map((player) => {
+        const derivedStatus = deriveStatus(player);
+        const calculatedAge = player.dob
+          ? Math.floor(
+              (Date.now() - new Date(player.dob).getTime()) /
+                (365.25 * 24 * 60 * 60 * 1000),
+            )
+          : null;
+
+        return {
+          ...player,
+          id: player._id,
+          parents: player.parentId ? [player.parentId] : [],
+          status: derivedStatus,
+          registrationStatus:
+            derivedStatus === 'Active'
+              ? 'Paid'
+              : derivedStatus === 'Pending Payment'
+                ? 'Pending'
+                : 'Incomplete',
+          imgSrc: player.avatar
+            ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
+            : player.gender === 'Female'
+              ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+              : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
+          formattedDob: player.dob
+            ? new Date(player.dob).toLocaleDateString()
+            : null,
+          age: calculatedAge,
+        };
+      });
+
+      res.json({
+        data: transformedPlayers,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum),
+          hasNextPage: pageNum < Math.ceil(total / limitNum),
+          hasPrevPage: pageNum > 1,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching paginated players:', error);
+      res.status(500).json({
+        error: 'Failed to fetch players',
+        details:
+          process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
+  },
+);
+
+// Get all unique seasons for filter dropdown
+router.get('/players/seasons/list', authenticate, async (req, res) => {
+  try {
+    const seasons = await Player.aggregate([
+      { $unwind: '$seasons' },
+      {
+        $group: {
+          _id: {
+            season: '$seasons.season',
+            year: '$seasons.year',
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          season: '$_id.season',
+          year: '$_id.year',
+          label: {
+            $concat: ['$_id.season', ' ', { $toString: '$_id.year' }],
+          },
+        },
+      },
+      { $sort: { year: -1, season: 1 } },
+    ]);
+
+    res.json(seasons);
+  } catch (error) {
+    console.error('Error fetching seasons list:', error);
+    res.status(500).json({ error: 'Failed to fetch seasons' });
   }
 });
 

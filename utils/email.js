@@ -6,13 +6,160 @@ const Team = require('../models/Team');
 const EmailTemplate = require('../models/EmailTemplate');
 const fs = require('fs');
 const path = require('path');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Initialize R2 client for downloading attachments
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
+
+const BUCKET_NAME = process.env.R2_BUCKET || 'partizan';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+
+// R2 logo URL
+const R2_LOGO_URL = process.env.R2_PUBLIC_URL
+  ? `${process.env.R2_PUBLIC_URL}/logo/logo.png`
+  : 'https://partizanhoops.com/assets/img/logo.png'; // Fallback to website logo if R2 not configured
+
+/**
+ * Extract key from R2 URL - handles both public URLs and direct paths
+ */
+const extractKeyFromR2Url = (url) => {
+  if (!url) return null;
+
+  // Handle public URLs (https://pub-xxxx.r2.dev/attachments/filename.pdf)
+  if (url.includes(R2_PUBLIC_URL)) {
+    return url.replace(`${R2_PUBLIC_URL}/`, '');
+  }
+
+  // Handle cloudflarestorage.com URLs
+  const cloudflareMatch = url.match(/cloudflarestorage\.com\/[^\/]+\/(.+)$/);
+  if (cloudflareMatch) return cloudflareMatch[1];
+
+  // Handle .r2.dev URLs
+  const r2DevMatch = url.match(/\.r2\.dev\/(.+)$/);
+  if (r2DevMatch) return r2DevMatch[1];
+
+  // If it's already a key (just "attachments/filename.pdf"), return as-is
+  if (url.startsWith('attachments/')) {
+    return url;
+  }
+
+  return null;
+};
+
+/**
+ * Check if URL is from R2
+ */
+const isR2Url = (url) => {
+  if (!url) return false;
+  return (
+    url.includes('r2.cloudflarestorage.com') ||
+    url.includes('.r2.dev') ||
+    (R2_PUBLIC_URL && url.includes(R2_PUBLIC_URL)) ||
+    url.startsWith('attachments/')
+  );
+};
+
+/**
+ * Download file from R2 attachments folder
+ */
+async function downloadFromR2(url) {
+  try {
+    console.log(`📥 Downloading from R2 attachments: ${url}`);
+
+    const key = extractKeyFromR2Url(url);
+    if (!key) {
+      throw new Error(`Could not extract key from R2 URL: ${url}`);
+    }
+
+    // Ensure the key is in the attachments folder
+    const fullKey = key.startsWith('attachments/') ? key : `attachments/${key}`;
+
+    console.log(`Extracted key: ${fullKey}`);
+
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: fullKey,
+    });
+
+    const response = await r2Client.send(command);
+
+    // Convert the readable stream to buffer
+    const chunks = [];
+    for await (const chunk of response.Body) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    console.log(`✅ Downloaded ${buffer.length} bytes from R2 attachments`);
+
+    return {
+      buffer,
+      contentType:
+        response.ContentType || getMimeType(key.split('/').pop() || ''),
+    };
+  } catch (error) {
+    console.error(`❌ Failed to download from R2 attachments:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Construct R2 URL for an attachment
+ * @param {string} filename - The filename
+ * @returns {string} The full R2 URL
+ */
+const getR2AttachmentUrl = (filename) => {
+  return `${R2_PUBLIC_URL}/attachments/${filename}`;
+};
+
+/**
+ * Upload attachment to R2
+ * @param {Buffer} fileBuffer - The file buffer
+ * @param {string} filename - Original filename
+ * @returns {Promise<{url: string, key: string}>}
+ */
+async function uploadAttachmentToR2(fileBuffer, filename) {
+  const { PutObjectCommand } = require('@aws-sdk/client-s3');
+  const crypto = require('crypto');
+
+  try {
+    const fileExtension = filename.split('.').pop();
+    const uniqueId = crypto.randomBytes(16).toString('hex');
+    const key = `attachments/${uniqueId}-${Date.now()}.${fileExtension}`;
+
+    const uploadParams = {
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: fileBuffer,
+      ContentType: getMimeType(filename),
+    };
+
+    const command = new PutObjectCommand(uploadParams);
+    await r2Client.send(command);
+
+    const url = `${R2_PUBLIC_URL}/${key}`;
+    console.log(`✅ Attachment uploaded to R2: ${url}`);
+
+    return { url, key };
+  } catch (error) {
+    console.error('❌ Failed to upload attachment to R2:', error);
+    throw error;
+  }
+}
 
 // ============ TEMPLATE VARIABLE REPLACEMENT ============
 async function replaceTemplateVariables(
   templateContent,
-  { parentId, playerId, teamId, tournamentData }
+  { parentId, playerId, teamId, tournamentData },
 ) {
   let parent = null;
   let player = null;
@@ -36,50 +183,50 @@ async function replaceTemplateVariables(
   if (parent) {
     templateContent = templateContent.replace(
       /\[parent\.fullName\]/g,
-      parent.fullName || ''
+      parent.fullName || '',
     );
     templateContent = templateContent.replace(
       /\[parent\.email\]/g,
-      parent.email || ''
+      parent.email || '',
     );
     templateContent = templateContent.replace(
       /\[parent\.phone\]/g,
-      parent.phone || ''
+      parent.phone || '',
     );
   }
 
   if (player) {
     templateContent = templateContent.replace(
       /\[player\.fullName\]/g,
-      player.fullName || ''
+      player.fullName || '',
     );
     templateContent = templateContent.replace(
       /\[player\.firstName\]/g,
-      player.firstName || ''
+      player.firstName || '',
     );
     templateContent = templateContent.replace(
       /\[player\.grade\]/g,
-      player.grade || ''
+      player.grade || '',
     );
     templateContent = templateContent.replace(
       /\[player\.schoolName\]/g,
-      player.schoolName || ''
+      player.schoolName || '',
     );
   }
 
   if (team) {
     templateContent = templateContent.replace(
       /\[team\.name\]/g,
-      team.name || ''
+      team.name || '',
     );
     templateContent = templateContent.replace(
       /\[team\.grade\]/g,
-      team.grade || ''
+      team.grade || '',
     );
     templateContent = templateContent.replace(/\[team\.sex\]/g, team.sex || '');
     templateContent = templateContent.replace(
       /\[team\.levelOfCompetition\]/g,
-      team.levelOfCompetition || ''
+      team.levelOfCompetition || '',
     );
   }
 
@@ -87,15 +234,15 @@ async function replaceTemplateVariables(
   if (tournamentData) {
     templateContent = templateContent.replace(
       /\[tournament\.name\]/g,
-      tournamentData.tournament || ''
+      tournamentData.tournament || '',
     );
     templateContent = templateContent.replace(
       /\[tournament\.year\]/g,
-      tournamentData.year || ''
+      tournamentData.year || '',
     );
     templateContent = templateContent.replace(
       /\[tournament\.fee\]/g,
-      tournamentData.fee || '$425'
+      tournamentData.fee || '$425',
     );
   }
 
@@ -119,7 +266,7 @@ async function sendEmail({
 
     if (!shouldSend) {
       console.log(
-        `Email not sent to ${to} - user has opted out of ${emailType} emails`
+        `Email not sent to ${to} - user has opted out of ${emailType} emails`,
       );
       return { skipped: true, reason: 'user_opt_out' };
     }
@@ -154,109 +301,81 @@ async function sendEmail({
             size: attachment.size,
           });
 
-          // ✅ Handle Cloudinary URLs
-          if (attachment.url && attachment.url.includes('cloudinary.com')) {
+          // ✅ Handle R2 attachments (from attachments folder)
+          if (attachment.url && isR2Url(attachment.url)) {
             try {
               console.log(
-                `Downloading from Cloudinary: ${attachment.filename}`
+                `Downloading from R2 attachments: ${attachment.filename}`,
               );
 
-              // Construct the correct Cloudinary download URL
-              let downloadUrl = attachment.url;
-
-              // For raw files (non-images), use /raw/upload/ format
-              if (
-                attachment.mimeType &&
-                !attachment.mimeType.startsWith('image/')
-              ) {
-                if (downloadUrl.includes('/image/upload/')) {
-                  downloadUrl = downloadUrl.replace(
-                    '/image/upload/',
-                    '/raw/upload/'
-                  );
-                }
-                // Add force download flag
-                if (!downloadUrl.includes('fl_attachment')) {
-                  downloadUrl += '?fl_attachment';
-                }
-              } else {
-                // For images, ensure proper format
-                if (!downloadUrl.includes('/image/upload/')) {
-                  const publicId = attachment.publicId || attachment.filename;
-                  downloadUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${publicId}`;
-                }
-              }
-
-              console.log(`Download URL: ${downloadUrl}`);
-
-              // Download file from Cloudinary
-              const response = await fetch(downloadUrl, {
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (compatible; PartizanApp/1.0)',
-                },
-              });
-
-              if (!response.ok) {
-                console.warn(
-                  `Failed to download from Cloudinary: ${response.status} ${response.statusText}`
-                );
-                // Try alternative URL format
-                const altUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${attachment.filename}`;
-                console.log(`Trying alternative URL: ${altUrl}`);
-                const altResponse = await fetch(altUrl);
-
-                if (!altResponse.ok) {
-                  console.warn(`Alternative URL also failed`);
-                  continue;
-                }
-
-                const buffer = await altResponse.arrayBuffer();
-                resendAttachments.push({
-                  filename: attachment.filename,
-                  content: Buffer.from(buffer),
-                  contentType:
-                    attachment.mimeType || getMimeType(attachment.filename),
-                });
-              } else {
-                const buffer = await response.arrayBuffer();
-                resendAttachments.push({
-                  filename: attachment.filename,
-                  content: Buffer.from(buffer),
-                  contentType:
-                    attachment.mimeType || getMimeType(attachment.filename),
-                });
-              }
-
-              console.log(
-                `✅ Cloudinary attachment ready: ${attachment.filename}`
-              );
-            } catch (fetchError) {
-              console.error(
-                `❌ Failed to download Cloudinary attachment ${attachment.filename}:`,
-                fetchError.message
+              const { buffer, contentType } = await downloadFromR2(
+                attachment.url,
               );
 
-              // Fallback: Use the URL directly (Resend might be able to fetch it)
               resendAttachments.push({
                 filename: attachment.filename,
-                url: attachment.url, // Let Resend handle the download
+                content: buffer,
                 contentType:
-                  attachment.mimeType || getMimeType(attachment.filename),
+                  contentType ||
+                  attachment.mimeType ||
+                  getMimeType(attachment.filename),
               });
+
+              console.log(
+                `✅ R2 attachment ready: ${attachment.filename} (${buffer.length} bytes)`,
+              );
+            } catch (r2Error) {
+              console.error(
+                `❌ Failed to download R2 attachment ${attachment.filename}:`,
+                r2Error.message,
+              );
+
+              // Fallback: Use the public URL directly
+              if (attachment.url.startsWith('http')) {
+                resendAttachments.push({
+                  filename: attachment.filename,
+                  path: attachment.url,
+                  contentType:
+                    attachment.mimeType || getMimeType(attachment.filename),
+                });
+              }
             }
           }
-          // ... handle other attachment types ...
+          // ✅ Handle local file paths
+          else if (attachment.path && fs.existsSync(attachment.path)) {
+            try {
+              const fileBuffer = fs.readFileSync(attachment.path);
+              resendAttachments.push({
+                filename: attachment.filename || path.basename(attachment.path),
+                content: fileBuffer,
+                contentType:
+                  attachment.mimeType || getMimeType(attachment.path),
+              });
+              console.log(`✅ Local file attached: ${attachment.path}`);
+            } catch (fileError) {
+              console.error(`❌ Failed to read local file:`, fileError);
+            }
+          }
+          // ✅ Handle direct buffer content
+          else if (attachment.content) {
+            resendAttachments.push({
+              filename: attachment.filename,
+              content: attachment.content,
+              contentType:
+                attachment.mimeType || getMimeType(attachment.filename),
+            });
+          }
         } catch (err) {
           console.error(
             `Error processing attachment ${attachment.filename}:`,
-            err
+            err,
           );
         }
       }
     }
 
     console.log(
-      `📧 Sending email to ${to} with ${resendAttachments.length} attachment(s)`
+      `📧 Sending email to ${to} with ${resendAttachments.length} attachment(s)`,
     );
 
     const emailData = {
@@ -276,8 +395,8 @@ async function sendEmail({
           filename: a.filename,
           contentType: a.contentType,
           hasContent: !!a.content,
-          hasUrl: !!a.url,
-        }))
+          hasPath: !!a.path,
+        })),
       );
     }
 
@@ -311,6 +430,7 @@ function getMimeType(filename) {
     jpeg: 'image/jpeg',
     png: 'image/png',
     gif: 'image/gif',
+    webp: 'image/webp',
     doc: 'application/msword',
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     xls: 'application/vnd.ms-excel',
@@ -362,7 +482,9 @@ async function sendTemplateEmail({
     }
 
     // Get complete HTML with signature if needed
-    const completeHTML = template.getCompleteEmailHTML();
+    const completeHTML = template.getCompleteEmailHTML
+      ? template.getCompleteEmailHTML(content)
+      : content;
 
     // DEBUG: Check what attachments are available
     console.log('Template attachments:', {
@@ -415,8 +537,7 @@ async function sendTemplateEmail({
   }
 }
 
-// ============ PLAYER/TROUT WELCOME EMAIL ============
-// This is ONLY for player/tryout registrations
+// ============ PLAYER/TRYOUT WELCOME EMAIL ============
 async function sendWelcomeEmail(parentId, playerId) {
   try {
     // 1. Find the "Welcome" template from your database
@@ -430,7 +551,8 @@ async function sendWelcomeEmail(parentId, playerId) {
         content: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+              <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+                   onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
             </div>
             
             <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -462,6 +584,13 @@ async function sendWelcomeEmail(parentId, playerId) {
           </div>
         `,
       };
+
+      // Get parent for email
+      const parent = await Parent.findById(parentId);
+      if (!parent) {
+        throw new Error(`Parent not found with ID: ${parentId}`);
+      }
+
       return sendEmail({
         to: parent.email,
         subject: defaultTemplate.subject,
@@ -471,7 +600,7 @@ async function sendWelcomeEmail(parentId, playerId) {
       });
     }
 
-    // 2. Get the parent and player data - BOTH ARE REQUIRED FOR THIS FUNCTION
+    // 2. Get the parent and player data
     const parent = await Parent.findById(parentId);
     if (!parent) {
       throw new Error(`Parent not found with ID: ${parentId}`);
@@ -517,7 +646,6 @@ async function sendWelcomeEmail(parentId, playerId) {
 }
 
 // ============ TOURNAMENT WELCOME EMAIL ============
-// This is ONLY for tournament registrations (teams, not players)
 async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
   try {
     console.log('Sending tournament welcome email:', {
@@ -538,7 +666,7 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
       team = await Team.findById(teamId).lean();
       if (!team) {
         console.warn(
-          `Team not found with ID: ${teamId}, continuing without team details`
+          `Team not found with ID: ${teamId}, continuing without team details`,
         );
       }
     }
@@ -549,7 +677,8 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -629,13 +758,12 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
 }
 
 // ============ TOURNAMENT REGISTRATION EMAIL (AFTER PAYMENT) ============
-// This is sent after successful payment for tournament registration
 async function sendTournamentRegistrationEmail(
   parentId,
   teamIds,
   tournament,
   year,
-  totalAmount
+  totalAmount,
 ) {
   try {
     // 1. Get the parent data
@@ -667,7 +795,8 @@ async function sendTournamentRegistrationEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -797,7 +926,7 @@ async function sendTryoutEmail(parentId, playerId) {
 
     console.log(
       'Welcome Tryout email sent successfully using template:',
-      result
+      result,
     );
     return result;
   } catch (err) {
@@ -817,7 +946,7 @@ async function sendPaymentConfirmationEmail(
   playerIds,
   totalAmount,
   season,
-  year
+  year,
 ) {
   try {
     // 1. Find the payment confirmation template
@@ -827,7 +956,7 @@ async function sendPaymentConfirmationEmail(
 
     if (!template) {
       throw new Error(
-        'Payment Confirmation email template not found in database'
+        'Payment Confirmation email template not found in database',
       );
     }
 
@@ -851,23 +980,23 @@ async function sendPaymentConfirmationEmail(
     // Replace payment-specific variables
     populatedContent = populatedContent.replace(
       /\[payment\.playerCount\]/g,
-      playerCount.toString()
+      playerCount.toString(),
     );
     populatedContent = populatedContent.replace(
       /\[payment\.totalAmount\]/g,
-      `$${actualTotalAmount}`
+      `$${actualTotalAmount}`,
     );
     populatedContent = populatedContent.replace(
       /\[payment\.perPlayerAmount\]/g,
-      `$${perPlayerAmount}`
+      `$${perPlayerAmount}`,
     );
     populatedContent = populatedContent.replace(
       /\[payment\.season\]/g,
-      season || 'Partizan Team'
+      season || 'Partizan Team',
     );
     populatedContent = populatedContent.replace(
       /\[payment\.year\]/g,
-      year ? year.toString() : new Date().getFullYear().toString()
+      year ? year.toString() : new Date().getFullYear().toString(),
     );
 
     // Replace player names if needed
@@ -875,18 +1004,18 @@ async function sendPaymentConfirmationEmail(
       const playerNames = players.map((p) => p.fullName).join(', ');
       populatedContent = populatedContent.replace(
         /\[players\.names\]/g,
-        playerNames
+        playerNames,
       );
     }
 
     // Replace parent variables
     populatedContent = populatedContent.replace(
       /\[parent\.fullName\]/g,
-      parent.fullName || ''
+      parent.fullName || '',
     );
     populatedContent = populatedContent.replace(
       /\[parent\.email\]/g,
-      parent.email || ''
+      parent.email || '',
     );
 
     // 6. Send the email
@@ -955,7 +1084,7 @@ async function sendTrainingRegistrationPendingEmail(
   season,
   year,
   packageInfo = null,
-  playersData = []
+  playersData = [],
 ) {
   try {
     // 1. Get the parent data
@@ -987,7 +1116,8 @@ async function sendTrainingRegistrationPendingEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -1063,7 +1193,7 @@ async function sendTrainingRegistrationPendingEmail(
         season,
         year,
         email: parent.email,
-      }
+      },
     );
 
     return result;
@@ -1086,7 +1216,7 @@ async function sendRegistrationPendingEmail(
   playerIds,
   season,
   year,
-  packageInfo = null
+  packageInfo = null,
 ) {
   try {
     // 1. Get the parent data
@@ -1113,7 +1243,8 @@ async function sendRegistrationPendingEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -1393,7 +1524,8 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
         
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
         <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
@@ -1608,7 +1740,7 @@ async function sendFormSubmissionConfirmationEmail(formData, submissionData) {
                       <td><strong>${key}:</strong></td>
                       <td>${value}</td>
                     </tr>
-                  `
+                  `,
                   )
                   .join('')}
               </table>
@@ -1891,9 +2023,9 @@ async function shouldSendEmail(parentId, emailType) {
 module.exports = {
   sendEmail,
   sendResetEmail,
-  sendWelcomeEmail, // For player/tryout registrations ONLY
-  sendTournamentWelcomeEmail, // NEW: For tournament registration (before payment)
-  sendTournamentRegistrationEmail, // For tournament registration (after payment)
+  sendWelcomeEmail,
+  sendTournamentWelcomeEmail,
+  sendTournamentRegistrationEmail,
   sendTryoutEmail,
   sendPaymentConfirmationEmail,
   sendRegistrationPendingEmail,
@@ -1903,4 +2035,6 @@ module.exports = {
   sendFormOwnerNotificationEmail,
   shouldSendEmail,
   sendTemplateEmail,
+  uploadAttachmentToR2,
+  getR2AttachmentUrl,
 };

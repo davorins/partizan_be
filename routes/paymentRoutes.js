@@ -1,9 +1,10 @@
+// paymentRoutes.js
 const express = require('express');
 const {
   submitPayment,
   processRefund,
   getPaymentDetails,
-} = require('../services/square-payments');
+} = require('../services/payment-wrapper');
 const Payment = require('../models/Payment');
 const {
   authenticate,
@@ -117,7 +118,7 @@ router.post('/refund', authenticate, isAdmin, async (req, res) => {
       paymentRecord = await Payment.findById(paymentId);
       console.log(
         '📊 MongoDB search result:',
-        paymentRecord ? 'Found' : 'Not found'
+        paymentRecord ? 'Found' : 'Not found',
       );
     }
 
@@ -127,7 +128,7 @@ router.post('/refund', authenticate, isAdmin, async (req, res) => {
       paymentRecord = await Payment.findOne({ paymentId: paymentId });
       console.log(
         '📊 Square search result:',
-        paymentRecord ? 'Found' : 'Not found'
+        paymentRecord ? 'Found' : 'Not found',
       );
     }
 
@@ -154,7 +155,7 @@ router.post('/refund', authenticate, isAdmin, async (req, res) => {
     if (!paymentRecord.paymentId) {
       console.error(
         '❌ No Square payment ID found for payment:',
-        paymentRecord._id
+        paymentRecord._id,
       );
       return res.status(400).json({
         success: false,
@@ -351,7 +352,7 @@ router.get(
         error: error.message || 'Failed to get payment details',
       });
     }
-  }
+  },
 );
 
 // Check refund eligibility with access control
@@ -420,7 +421,7 @@ router.get(
         error: error.message || 'Failed to check refund eligibility',
       });
     }
-  }
+  },
 );
 
 // Get payments by parent ID with access control
@@ -476,7 +477,7 @@ router.get(
       });
 
       console.log(
-        `Returning ${sanitizedPayments.length} payments for parent ${parentId}`
+        `Returning ${sanitizedPayments.length} payments for parent ${parentId}`,
       );
 
       res.json(sanitizedPayments);
@@ -487,7 +488,7 @@ router.get(
         error: 'Failed to fetch payments',
       });
     }
-  }
+  },
 );
 
 // Get all payments - ADMIN ONLY
@@ -556,7 +557,7 @@ router.post(
         error: 'Failed to sync refunds',
       });
     }
-  }
+  },
 );
 
 // Sync all refunds - ADMIN ONLY
@@ -626,7 +627,7 @@ router.post(
         error: 'Failed to sync refunds by date range',
       });
     }
-  }
+  },
 );
 
 module.exports = router;

@@ -1,41 +1,9 @@
 // utils/fileUpload.js
 const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { uploadToR2, deleteFromR2, isR2Url } = require('./r2');
 
-// Make sure Cloudinary is configured
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true, // Ensure HTTPS
-});
-
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'attachments',
-    allowed_formats: [
-      'jpg',
-      'jpeg',
-      'png',
-      'gif',
-      'pdf',
-      'doc',
-      'docx',
-      'xls',
-      'xlsx',
-      'txt',
-      'zip',
-      'rar',
-    ],
-    resource_type: 'auto', // This is important for non-images
-    public_id: (req, file) => {
-      // Generate unique filename
-      return `${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, '')}`;
-    },
-  },
-});
+// Configure multer for memory storage (since we're uploading to R2 directly)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -43,11 +11,13 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB
   },
   fileFilter: (req, file, cb) => {
-    // Keep your file filter logic
+    // Define allowed file types
     const allowedMimeTypes = [
       'image/jpeg',
+      'image/jpg',
       'image/png',
       'image/gif',
+      'image/webp',
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -66,48 +36,104 @@ const upload = multer({
   },
 });
 
-// utils/fileUpload.js - Update getFileInfo function
-const getFileInfo = (file) => {
-  console.log('Cloudinary file info:', {
-    originalname: file.originalname,
-    path: file.path,
-    size: file.size,
-    mimetype: file.mimetype,
-    filename: file.filename,
-    secure_url: file.secure_url,
-  });
+/**
+ * Get file information after upload
+ * @param {Object} file - The file object from multer
+ * @param {string} folder - The folder path in R2
+ * @returns {Promise<Object>} File information
+ */
+const uploadAndGetFileInfo = async (file, folder = 'attachments') => {
+  try {
+    console.log('📤 Uploading file to R2:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      folder,
+    });
 
-  // Use secure_url if available, otherwise use path
-  let cloudinaryUrl = file.secure_url || file.path;
+    // Upload to R2
+    const { url, key } = await uploadToR2(
+      file.buffer,
+      folder,
+      file.originalname,
+    );
 
-  // For ALL files, ensure we have the correct delivery URL
-  // Cloudinary's raw upload URLs should be used for non-image files
-  if (file.mimetype && !file.mimetype.startsWith('image/')) {
-    // For non-image files, get the raw URL
-    if (cloudinaryUrl.includes('/image/upload/')) {
-      cloudinaryUrl = cloudinaryUrl.replace('/image/upload/', '/raw/upload/');
-    }
-  } else {
-    // For images, ensure we have the correct URL
-    if (!cloudinaryUrl.includes('/image/upload/')) {
-      // Construct the proper image URL
-      const publicId = file.public_id || file.filename;
-      cloudinaryUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${publicId}`;
-    }
+    console.log('✅ File uploaded to R2:', { url, key });
+
+    return {
+      filename: file.originalname,
+      url: url,
+      size: file.size,
+      mimeType: file.mimetype,
+      uploadedAt: new Date(),
+      key: key,
+      isImage: file.mimetype.startsWith('image/'),
+    };
+  } catch (error) {
+    console.error('❌ Error uploading file to R2:', error);
+    throw new Error(`Failed to upload file: ${error.message}`);
   }
+};
+
+/**
+ * Get file info from an existing R2 URL
+ * @param {string} url - The R2 URL
+ * @returns {Object} File information
+ */
+const getFileInfoFromUrl = (url) => {
+  if (!url) return null;
+
+  const isR2 = isR2Url(url);
 
   return {
-    filename: file.originalname,
-    url: cloudinaryUrl,
-    size: file.size,
-    mimeType: file.mimetype,
-    uploadedAt: new Date(),
-    publicId: file.filename,
-    cloudinaryPublicId: file.public_id || file.filename,
+    url: url,
+    isR2Url: isR2,
+    key: isR2 ? url.split('/').pop() : null,
+    isImage: url.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null,
   };
+};
+
+/**
+ * Delete a file from R2
+ * @param {string} url - The R2 URL to delete
+ * @returns {Promise<boolean>}
+ */
+const deleteFile = async (url) => {
+  try {
+    if (!url || !isR2Url(url)) {
+      console.log('Not an R2 URL, skipping deletion:', url);
+      return false;
+    }
+
+    await deleteFromR2(url);
+    console.log('✅ File deleted from R2:', url);
+    return true;
+  } catch (error) {
+    console.error('❌ Error deleting file from R2:', error);
+    throw new Error(`Failed to delete file: ${error.message}`);
+  }
+};
+
+/**
+ * Extract file key from R2 URL
+ * @param {string} url - The R2 URL
+ * @returns {string|null} The file key
+ */
+const getFileKeyFromUrl = (url) => {
+  if (!url || !isR2Url(url)) return null;
+
+  // Extract everything after the public URL
+  const PUBLIC_URL = process.env.R2_PUBLIC_URL;
+  if (url.includes(PUBLIC_URL)) {
+    return url.replace(`${PUBLIC_URL}/`, '');
+  }
+  return url;
 };
 
 module.exports = {
   upload,
-  getFileInfo,
+  uploadAndGetFileInfo,
+  getFileInfoFromUrl,
+  deleteFile,
+  getFileKeyFromUrl,
 };

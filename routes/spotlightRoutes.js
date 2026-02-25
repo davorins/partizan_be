@@ -3,28 +3,75 @@ const express = require('express');
 const router = express.Router();
 const Spotlight = require('../models/Spotlight');
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('../utils/cloudinary'); // Use your existing cloudinary util
+const {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} = require('@aws-sdk/client-s3');
+const { randomUUID } = require('crypto');
+const path = require('path');
 
 // Auth middleware
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
-// Create Cloudinary storage for spotlight images
-const spotlightStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: (req, file) => {
-    return {
-      folder: 'bothell-select/spotlight',
-      allowed_formats: ['jpg', 'png', 'jpeg', 'gif', 'webp'],
-      transformation: [{ width: 1200, height: 800, crop: 'limit' }], // Optimize for display
-      public_id: `spotlight_${Date.now()}_${Math.round(Math.random() * 1e9)}`,
-    };
+// ✅ R2 client — reuses the same config as your existing r2.js util
+const r2 = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
 
+const R2_BUCKET = process.env.R2_BUCKET;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+
+// ✅ Upload a buffer to R2, return the public URL
+const uploadToR2 = async (buffer, originalName, mimetype) => {
+  const ext = path.extname(originalName) || '.jpg';
+  const key = `spotlight/spotlight_${Date.now()}_${randomUUID()}${ext}`;
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: mimetype,
+    }),
+  );
+
+  return { url: `${R2_PUBLIC_URL}/${key}`, key };
+};
+
+// ✅ Delete a file from R2 by its public URL
+const deleteFromR2 = async (imageUrl) => {
+  try {
+    // Extract the key from the full public URL
+    // e.g. https://pub-xxx.r2.dev/spotlight/spotlight_123.jpg → spotlight/spotlight_123.jpg
+    const key = imageUrl.replace(`${R2_PUBLIC_URL}/`, '');
+    if (!key || key === imageUrl) {
+      console.warn('Could not extract R2 key from URL:', imageUrl);
+      return;
+    }
+
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: key,
+      }),
+    );
+
+    console.log('Deleted from R2:', key);
+  } catch (err) {
+    console.error('Error deleting from R2:', err);
+  }
+};
+
+// ✅ Multer uses memory storage — we handle the upload to R2 ourselves
 const upload = multer({
-  storage: spotlightStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -53,14 +100,18 @@ router.post(
       } = req.body;
 
       console.log('Request body:', req.body);
-      console.log('Uploaded files:', req.files);
+      console.log('Uploaded files:', req.files?.length);
 
-      // Cloudinary returns file information in req.files
-      const imageFiles = (req.files || []).map(
-        (file) => file.path // Cloudinary provides the URL in file.path
+      // ✅ Upload each file buffer to R2
+      const imageUrls = await Promise.all(
+        (req.files || []).map((file) =>
+          uploadToR2(file.buffer, file.originalname, file.mimetype).then(
+            (r) => r.url,
+          ),
+        ),
       );
 
-      console.log('Cloudinary image URLs:', imageFiles);
+      console.log('R2 image URLs:', imageUrls);
 
       const doc = new Spotlight({
         title,
@@ -68,7 +119,7 @@ router.post(
         category,
         playerNames: playerNames ? JSON.parse(playerNames) : [],
         badges: badges ? JSON.parse(badges) : [],
-        images: imageFiles,
+        images: imageUrls,
         date: date ? new Date(date) : undefined,
         featured: featured === 'true' || featured === true,
         createdBy: req.user._id,
@@ -80,12 +131,11 @@ router.post(
       res.status(201).json(doc);
     } catch (err) {
       console.error('Error creating spotlight:', err);
-      res.status(500).json({
-        message: 'Error creating spotlight',
-        error: err.message,
-      });
+      res
+        .status(500)
+        .json({ message: 'Error creating spotlight', error: err.message });
     }
-  }
+  },
 );
 
 // Get list (public)
@@ -138,9 +188,8 @@ router.put(
       } = req.body;
 
       console.log('Update request - removeImages:', removeImages);
-      console.log('Update request - new files:', req.files);
+      console.log('Update request - new files:', req.files?.length);
 
-      // Update fields
       if (title !== undefined) item.title = title;
       if (description !== undefined) item.description = description;
       if (category !== undefined) item.category = category;
@@ -151,50 +200,37 @@ router.put(
       if (date) item.date = new Date(date);
       item.featured = featured === 'true' || featured === true;
 
-      // Remove images requested
+      // ✅ Remove images from R2 and from the document
       if (removeImages) {
         const toRemove = JSON.parse(removeImages);
         console.log('Images to remove:', toRemove);
 
-        // Delete from Cloudinary
-        for (const imageUrl of toRemove) {
-          try {
-            // Extract public_id from Cloudinary URL
-            const urlParts = imageUrl.split('/');
-            const publicIdWithExtension = urlParts[urlParts.length - 1];
-            const publicId = publicIdWithExtension.split('.')[0];
-
-            // The public_id in Cloudinary includes the folder path
-            const fullPublicId = `bothell-select/spotlight/${publicId}`;
-            console.log('Deleting from Cloudinary:', fullPublicId);
-
-            const result = await cloudinary.uploader.destroy(fullPublicId);
-            console.log('Cloudinary deletion result:', result);
-          } catch (cloudinaryErr) {
-            console.error('Error deleting from Cloudinary:', cloudinaryErr);
-          }
-        }
-
+        await Promise.all(toRemove.map(deleteFromR2));
         item.images = item.images.filter((img) => !toRemove.includes(img));
       }
 
-      // Add new uploaded images
+      // ✅ Upload new images to R2
       if (req.files && req.files.length) {
-        const newImgs = req.files.map((file) => file.path);
-        console.log('Adding new images:', newImgs);
-        item.images = [...item.images, ...newImgs];
+        const newUrls = await Promise.all(
+          req.files.map((file) =>
+            uploadToR2(file.buffer, file.originalname, file.mimetype).then(
+              (r) => r.url,
+            ),
+          ),
+        );
+        console.log('Adding new images:', newUrls);
+        item.images = [...item.images, ...newUrls];
       }
 
       await item.save();
       res.json(item);
     } catch (err) {
       console.error('Error updating spotlight item:', err);
-      res.status(500).json({
-        message: 'Error updating item',
-        error: err.message,
-      });
+      res
+        .status(500)
+        .json({ message: 'Error updating item', error: err.message });
     }
-  }
+  },
 );
 
 // Delete (admin)
@@ -204,26 +240,11 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
     if (!item) return res.status(404).json({ message: 'Not found' });
 
     console.log('Deleting spotlight item:', item._id);
-    console.log('Images to delete from Cloudinary:', item.images);
+    console.log('Images to delete from R2:', item.images);
 
-    // Delete images from Cloudinary
+    // ✅ Delete all images from R2
     if (item.images && item.images.length > 0) {
-      for (const imageUrl of item.images) {
-        try {
-          // Extract public_id from Cloudinary URL
-          const urlParts = imageUrl.split('/');
-          const publicIdWithExtension = urlParts[urlParts.length - 1];
-          const publicId = publicIdWithExtension.split('.')[0];
-
-          const fullPublicId = `bothell-select/spotlight/${publicId}`;
-          console.log('Deleting image from Cloudinary:', fullPublicId);
-
-          const result = await cloudinary.uploader.destroy(fullPublicId);
-          console.log('Cloudinary deletion result:', result);
-        } catch (cloudinaryErr) {
-          console.error('Error deleting from Cloudinary:', cloudinaryErr);
-        }
-      }
+      await Promise.all(item.images.map(deleteFromR2));
     }
 
     await Spotlight.findByIdAndDelete(req.params.id);

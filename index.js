@@ -17,6 +17,7 @@ const refundRoutes = require('./routes/refundRoutes');
 const unpaidRoutes = require('./routes/unpaidRoutes');
 const paymentProcessRoutes = require('./routes/paymentProcessRoutes');
 const paymentConfiguration = require('./routes/payment-configuration');
+const cloverPaymentRoutes = require('./routes/clover-payment-routes');
 const squareWebhooksRouter = require('./routes/squareWebhooks');
 const { authenticate, isAdmin, isCoach, isUser } = require('./utils/auth');
 const path = require('path');
@@ -117,6 +118,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payments', unpaidRoutes);
 app.use('/api/payments', paymentProcessRoutes);
+app.use('/api/clover', cloverPaymentRoutes);
 app.use('/api/payment-configuration', paymentConfiguration);
 app.use('/api/refunds', refundRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -146,6 +148,21 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/page-builder', pageBuilder);
 app.get('/api/health', healthCheck);
+
+// Backend route for fetching player data
+app.get('/api/player/:playerId', async (req, res) => {
+  try {
+    const playerId = req.params.playerId;
+    const player = await Player.findById(playerId).select('+parentId');
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    res.json(player);
+  } catch (error) {
+    console.error('Error fetching player:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Connect to MongoDB
 mongoose
@@ -192,32 +209,34 @@ mongoose.connection.once('open', () => {
   }, 5000);
 });
 
-// Backend route for fetching player data
-app.get('/api/player/:playerId', async (req, res) => {
+// Update player details
+app.put('/api/players/:id', authenticate, async (req, res) => {
   try {
-    const playerId = req.params.playerId;
-    const player = await Player.findById(playerId).select('+parentId');
-    if (!player) {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validate the ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid player ID format' });
+    }
+
+    const updatedPlayer = await Player.findByIdAndUpdate(id, updateData, {
+      new: true, // Return the updated document
+      runValidators: true, // Run schema validators on update
+    });
+
+    if (!updatedPlayer) {
       return res.status(404).json({ error: 'Player not found' });
     }
-    res.json(player);
+
+    res.json(updatedPlayer);
   } catch (error) {
-    console.error('Error fetching player:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Update error:', error);
+    res.status(500).json({
+      error: 'Failed to update player',
+      details: error.message,
+    });
   }
-});
-
-// Protected routes
-app.get('/api/admin-dashboard', authenticate, isAdmin, (req, res) => {
-  res.json({ message: 'Welcome to the Admin Dashboard' });
-});
-
-app.get('/api/coach-dashboard', authenticate, isCoach, (req, res) => {
-  res.json({ message: 'Welcome to the Coach Dashboard' });
-});
-
-app.get('/api/user-dashboard', authenticate, isUser, (req, res) => {
-  res.json({ message: 'Welcome to the User Dashboard' });
 });
 
 // Fetch all registrations for a player
@@ -286,36 +305,6 @@ app.post('/api/players', authenticate, async (req, res) => {
   }
 });
 
-// Update player details
-app.put('/api/players/:id', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    // Validate the ID
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid player ID format' });
-    }
-
-    const updatedPlayer = await Player.findByIdAndUpdate(id, updateData, {
-      new: true, // Return the updated document
-      runValidators: true, // Run schema validators on update
-    });
-
-    if (!updatedPlayer) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
-
-    res.json(updatedPlayer);
-  } catch (error) {
-    console.error('Update error:', error);
-    res.status(500).json({
-      error: 'Failed to update player',
-      details: error.message,
-    });
-  }
-});
-
 // Check if the email is already registered
 app.post('/api/check-email', async (req, res) => {
   const { email } = req.body;
@@ -326,6 +315,19 @@ app.post('/api/check-email', async (req, res) => {
     return res.status(409).json({ message: 'Email is already registered' });
   }
   res.status(200).json({ message: 'Email is available' });
+});
+
+// Protected routes
+app.get('/api/admin-dashboard', authenticate, isAdmin, (req, res) => {
+  res.json({ message: 'Welcome to the Admin Dashboard' });
+});
+
+app.get('/api/coach-dashboard', authenticate, isCoach, (req, res) => {
+  res.json({ message: 'Welcome to the Coach Dashboard' });
+});
+
+app.get('/api/user-dashboard', authenticate, isUser, (req, res) => {
+  res.json({ message: 'Welcome to the User Dashboard' });
 });
 
 app.use((req, res) => {

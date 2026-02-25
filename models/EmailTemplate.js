@@ -158,7 +158,7 @@ const emailTemplateSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 // Indexes
@@ -168,6 +168,20 @@ emailTemplateSchema.index({ updatedAt: -1 });
 emailTemplateSchema.index({ title: 1, status: 1 });
 emailTemplateSchema.index({ category: 1, status: 1 });
 emailTemplateSchema.index({ includeSignature: 1 });
+
+// Helper function to get R2 public URL from env
+const getR2PublicUrl = () => {
+  return (
+    process.env.R2_PUBLIC_URL ||
+    'https://pub-3eb0901007e24e51b6ed1bde149cb0bb.r2.dev'
+  );
+};
+
+// Helper function to get logo URL
+const getLogoUrl = () => {
+  const baseUrl = getR2PublicUrl();
+  return `${baseUrl}/logo/logo.png`; // Using assets folder for logo, not attachments
+};
 
 // Helper function to extract JUST the body content (remove any existing headers/footers)
 const extractBodyContent = (html) => {
@@ -202,13 +216,13 @@ const extractBodyContent = (html) => {
     // Remove email wrapper tables
     content = content.replace(
       /<table[^>]*role="presentation"[^>]*>[\s\S]*?<\/table>/gi,
-      ''
+      '',
     );
 
     // Remove Partizan header
     content = content.replace(
       /<div[^>]*>\s*<img[^>]*alt="Partizan Logo"[^>]*>\s*<\/div>/i,
-      ''
+      '',
     );
 
     // Remove email footer
@@ -219,15 +233,15 @@ const extractBodyContent = (html) => {
     // Remove unsubscribe links
     content = content.replace(
       /<a[^>]*href="[^"]*unsubscribe[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
-      ''
+      '',
     );
     content = content.replace(
       /<a[^>]*href="[^"]*contact[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
-      ''
+      '',
     );
     content = content.replace(
       /<a[^>]*href="[^"]*website[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
-      ''
+      '',
     );
 
     // Remove copyright footer
@@ -249,62 +263,62 @@ const addEmailStyles = (html) => {
   // Add basic styles to paragraphs
   styledHtml = styledHtml.replace(
     /<p(\s[^>]*)?>/g,
-    '<p style="margin: 0 0 16px; padding: 0; line-height: 1.6; color: #333;"$1>'
+    '<p style="margin: 0 0 16px; padding: 0; line-height: 1.6; color: #333;"$1>',
   );
 
   // Style headings
   styledHtml = styledHtml.replace(
     /<h1(\s[^>]*)?>/g,
-    '<h1 style="font-size: 28px; font-weight: bold; margin: 0 0 20px; padding: 0; color: #222; line-height: 1.3;"$1>'
+    '<h1 style="font-size: 28px; font-weight: bold; margin: 0 0 20px; padding: 0; color: #222; line-height: 1.3;"$1>',
   );
 
   styledHtml = styledHtml.replace(
     /<h2(\s[^>]*)?>/g,
-    '<h2 style="font-size: 24px; font-weight: bold; margin: 0 0 18px; padding: 0; color: #222; line-height: 1.3;"$1>'
+    '<h2 style="font-size: 24px; font-weight: bold; margin: 0 0 18px; padding: 0; color: #222; line-height: 1.3;"$1>',
   );
 
   styledHtml = styledHtml.replace(
     /<h3(\s[^>]*)?>/g,
-    '<h3 style="font-size: 20px; font-weight: 600; margin: 0 0 16px; padding: 0; color: #222; line-height: 1.3;"$1>'
+    '<h3 style="font-size: 20px; font-weight: 600; margin: 0 0 16px; padding: 0; color: #222; line-height: 1.3;"$1>',
   );
 
   // Style lists
   styledHtml = styledHtml.replace(
     /<ul(\s[^>]*)?>/g,
-    '<ul style="margin: 0 0 16px 20px; padding: 0; color: #333; line-height: 1.6;"$1>'
+    '<ul style="margin: 0 0 16px 20px; padding: 0; color: #333; line-height: 1.6;"$1>',
   );
 
   styledHtml = styledHtml.replace(
     /<ol(\s[^>]*)?>/g,
-    '<ol style="margin: 0 0 16px 20px; padding: 0; color: #333; line-height: 1.6;"$1>'
+    '<ol style="margin: 0 0 16px 20px; padding: 0; color: #333; line-height: 1.6;"$1>',
   );
 
   styledHtml = styledHtml.replace(
     /<li(\s[^>]*)?>/g,
-    '<li style="margin: 0 0 8px; padding: 0;"$1>'
+    '<li style="margin: 0 0 8px; padding: 0;"$1>',
   );
 
   // Style links
   styledHtml = styledHtml.replace(
     /<a(\s[^>]*)?>/g,
-    '<a style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;"$1>'
+    '<a style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;"$1>',
   );
 
   // Style bold and italic
   styledHtml = styledHtml.replace(
     /<strong(\s[^>]*)?>/g,
-    '<strong style="font-weight: bold;"$1>'
+    '<strong style="font-weight: bold;"$1>',
   );
 
   styledHtml = styledHtml.replace(
     /<em(\s[^>]*)?>/g,
-    '<em style="font-style: italic;"$1>'
+    '<em style="font-style: italic;"$1>',
   );
 
   // Style blockquotes
   styledHtml = styledHtml.replace(
     /<blockquote(\s[^>]*)?>/g,
-    '<blockquote style="margin: 20px 0; padding: 15px 20px; background-color: #f8f9fa; border-left: 4px solid #594230; color: #555; font-style: italic;"$1>'
+    '<blockquote style="margin: 20px 0; padding: 15px 20px; background-color: #f8f9fa; border-left: 4px solid #594230; color: #555; font-style: italic;"$1>',
   );
 
   return styledHtml;
@@ -340,7 +354,7 @@ emailTemplateSchema.methods.generateAttachmentsHTML = function () {
   console.log(
     '📎 Generating attachments HTML for',
     this.attachments.length,
-    'attachment(s)'
+    'attachment(s)',
   );
 
   const attachmentItems = this.attachments
@@ -470,6 +484,9 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
     return this.content;
   }
 
+  const logoUrl = getLogoUrl();
+  const baseUrl = getR2PublicUrl();
+
   // Otherwise, wrap with headers/footers
   return `<!DOCTYPE html>
 <html lang="en">
@@ -510,7 +527,8 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
             <tr>
               <td style="padding: 30px 30px 0;">
                 <div style="text-align: left; border-bottom: 1px solid #eaeaea; padding-bottom: 20px;">
-                  <img src="https://res.cloudinary.com/dlmdnn3dk/image/upload/v1749172582/nldqvryhacnunvyi9i8a.png" alt="Partizan Logo" height="30" style="display: block; margin: 0; height: 30px;" />
+                  <img src="${logoUrl}" alt="Partizan Logo" height="30" style="display: block; margin: 0; height: 30px;" 
+                       onerror="this.onerror=null; this.src='${baseUrl}/logo/logo.png';" />
                 </div>
               </td>
             </tr>

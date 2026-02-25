@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const Form = require('../models/Form');
 const FormSubmission = require('../models/FormSubmission');
-const { submitPayment } = require('../services/square-payments');
+const { submitPayment } = require('../services/payment-wrapper');
 const TicketPurchase = require('../models/TicketPurchase');
 const { body, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
@@ -1370,7 +1370,7 @@ async function processFormPaymentWithoutParent(token, amount, options = {}) {
 
   try {
     // Import your square service
-    const { processSquarePayment } = require('../services/square-payments');
+    const { processSquarePayment } = require('../services/payment-wrapper');
 
     // Process with Square - assuming your square service can handle form payments
     const paymentResult = await processSquarePayment(token, amount, {

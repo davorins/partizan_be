@@ -1,8 +1,60 @@
+// payment-configuration.js
 const express = require('express');
 const router = express.Router();
 const PaymentConfiguration = require('../models/PaymentConfiguration');
 const { authenticate, isAdmin } = require('../utils/auth');
 const { body, validationResult } = require('express-validator');
+
+router.get('/frontend/config', async (req, res) => {
+  try {
+    const config = await PaymentConfiguration.findOne({
+      isActive: true,
+    }).sort({ isDefault: -1 });
+
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active payment configuration found',
+      });
+    }
+
+    // Return only non-sensitive information needed for frontend
+    const frontendConfig = {
+      paymentSystem: config.paymentSystem,
+      environment:
+        config[`${config.paymentSystem}Config`]?.environment || 'sandbox',
+      currency: config.settings?.currency || 'USD',
+      // Return only public config values
+      squareConfig: config.squareConfig
+        ? {
+            applicationId: config.squareConfig.applicationId,
+            locationId: config.squareConfig.locationId,
+            environment: config.squareConfig.environment,
+          }
+        : null,
+      cloverConfig: config.cloverConfig
+        ? {
+            merchantId: config.cloverConfig.merchantId,
+            environment: config.cloverConfig.environment,
+          }
+        : null,
+      settings: {
+        currency: config.settings?.currency || 'USD',
+      },
+    };
+
+    res.json({
+      success: true,
+      ...frontendConfig,
+    });
+  } catch (error) {
+    console.error('Error getting frontend payment configuration:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get payment configuration',
+    });
+  }
+});
 
 // Get all payment configurations (NO organization needed!)
 router.get('/', authenticate, isAdmin, async (req, res) => {
@@ -451,13 +503,21 @@ router.get('/system/active', async (req, res) => {
       });
     }
 
+    // Return the full configuration
     res.json({
       success: true,
       active: true,
       paymentSystem: config.paymentSystem,
       environment:
         config[`${config.paymentSystem}Config`]?.environment || 'sandbox',
-      currency: config.settings.currency || 'USD',
+      currency: config.settings?.currency || 'USD',
+      // Include the specific payment system config
+      squareConfig: config.squareConfig || null,
+      cloverConfig: config.cloverConfig || null,
+      stripeConfig: config.stripeConfig || null,
+      paypalConfig: config.paypalConfig || null,
+      // Include other settings
+      settings: config.settings || {},
     });
   } catch (error) {
     console.error('Error getting active payment system:', error);
@@ -509,7 +569,7 @@ async function testPaymentConfiguration(paymentSystem, config) {
         cloverClient.basePath =
           config.cloverConfig.environment === 'production'
             ? 'https://api.clover.com/v3'
-            : 'https://sandbox.dev.clover.com/v3';
+            : 'https://apisandbox.dev.clover.com/v3';
         cloverClient.authentications['oauth'].accessToken =
           config.cloverConfig.accessToken;
 

@@ -3,7 +3,9 @@ const { body, validationResult } = require('express-validator');
 const router = express.Router();
 const EmailTemplate = require('../models/EmailTemplate');
 const { authenticate } = require('../utils/auth');
-const { upload, getFileInfo } = require('../utils/fileUpload');
+const { upload } = require('../utils/fileUpload'); // ✅ Correct import from fileUpload
+const { uploadToR2, deleteFromR2, isR2Url } = require('../utils/r2');
+const crypto = require('crypto');
 
 // 🔐 Middleware for admin-only routes
 const authorizeAdmin = (req, res, next) => {
@@ -11,6 +13,30 @@ const authorizeAdmin = (req, res, next) => {
     return res.status(403).json({ success: false, error: 'Access denied' });
   }
   next();
+};
+
+/**
+ * Upload attachment to R2
+ */
+const uploadAttachmentToR2 = async (fileBuffer, filename, mimetype) => {
+  try {
+    const fileExtension = filename.split('.').pop();
+    const uniqueId = crypto.randomBytes(16).toString('hex');
+    const key = `attachments/${uniqueId}-${Date.now()}.${fileExtension}`;
+
+    const { url } = await uploadToR2(fileBuffer, 'attachments', filename);
+
+    return {
+      filename,
+      url,
+      size: fileBuffer.length,
+      mimeType: mimetype,
+      uploadedAt: new Date(),
+    };
+  } catch (error) {
+    console.error('❌ Failed to upload attachment to R2:', error);
+    throw error;
+  }
 };
 
 // ✅ Create a new email template
@@ -30,7 +56,6 @@ router.post(
     }
 
     try {
-      // If frontend sends completeContent, use it; otherwise it will be auto-generated
       const templateData = {
         ...req.body,
         createdBy: req.user.id,
@@ -49,7 +74,7 @@ router.post(
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
-  }
+  },
 );
 
 // ✅ Get all templates
@@ -75,7 +100,6 @@ router.get('/:id', authenticate, async (req, res) => {
         .json({ success: false, error: 'Template not found' });
     }
 
-    // Ensure template has completeContent
     if (!template.completeContent) {
       template.completeContent = template.getCompleteEmailHTML();
       await template.save();
@@ -141,20 +165,16 @@ router.put(
         });
       }
 
-      // Set lastUpdatedBy
       req.body.lastUpdatedBy = req.user.id;
 
-      // Handle attachments - only update if provided
       if (req.body.attachments !== undefined) {
         template.attachments = req.body.attachments;
       }
 
-      // Remove completeContent if frontend sent it - let model generate fresh one
       if (req.body.completeContent) {
         delete req.body.completeContent;
       }
 
-      // Only update allowed fields
       const updates = Object.keys(req.body);
       updates.forEach((update) => {
         template[update] = req.body[update];
@@ -162,7 +182,6 @@ router.put(
 
       await template.save();
 
-      // Ensure template has completeContent
       if (!template.completeContent) {
         template.completeContent = template.getCompleteEmailHTML();
         await template.save();
@@ -181,20 +200,45 @@ router.put(
         }),
       });
     }
-  }
+  },
 );
 
 // ✅ Delete template
 router.delete('/:id', authenticate, authorizeAdmin, async (req, res) => {
   try {
-    const template = await EmailTemplate.findByIdAndDelete(req.params.id);
+    const template = await EmailTemplate.findById(req.params.id);
     if (!template) {
       return res
         .status(404)
         .json({ success: false, error: 'Template not found' });
     }
 
-    res.json({ success: true, data: template });
+    if (template.attachments && template.attachments.length > 0) {
+      console.log(
+        `🗑️ Deleting ${template.attachments.length} attachments from R2`,
+      );
+
+      for (const attachment of template.attachments) {
+        if (attachment.url && isR2Url(attachment.url)) {
+          try {
+            await deleteFromR2(attachment.url);
+            console.log(`✅ Deleted attachment: ${attachment.filename}`);
+          } catch (deleteError) {
+            console.error(
+              `❌ Failed to delete attachment ${attachment.filename}:`,
+              deleteError,
+            );
+          }
+        }
+      }
+    }
+
+    await EmailTemplate.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Template and attachments deleted successfully',
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -228,7 +272,7 @@ router.get('/:id/generate-html', authenticate, async (req, res) => {
 router.post(
   '/:id/upload-attachment',
   authenticate,
-  upload.single('attachment'),
+  upload.single('attachment'), // ✅ This now works because upload is imported from fileUpload
   async (req, res) => {
     try {
       const template = await EmailTemplate.findById(req.params.id);
@@ -247,32 +291,104 @@ router.post(
         });
       }
 
-      console.log('📁 Uploaded file details:', {
+      console.log('📁 Uploading attachment to R2:', {
         originalName: req.file.originalname,
-        cloudinaryUrl: req.file.path,
         size: req.file.size,
         mimetype: req.file.mimetype,
-        cloudinaryPublicId: req.file.filename,
       });
 
-      const fileInfo = getFileInfo(req.file);
+      const attachment = await uploadAttachmentToR2(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+      );
 
-      // Add file info to template's attachments array
-      template.attachments.push(fileInfo);
+      template.attachments.push(attachment);
+      await template.save();
+
+      template.completeContent = template.getCompleteEmailHTML();
       await template.save();
 
       res.json({
         success: true,
         data: {
-          attachment: fileInfo,
+          attachment,
           templateId: template._id,
         },
       });
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('❌ Upload error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
-  }
+  },
+);
+
+// ✅ Upload multiple attachments for email template
+router.post(
+  '/:id/upload-attachments',
+  authenticate,
+  upload.array('attachments', 10),
+  async (req, res) => {
+    try {
+      const template = await EmailTemplate.findById(req.params.id);
+
+      if (!template) {
+        return res.status(404).json({
+          success: false,
+          error: 'Template not found',
+        });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No files uploaded',
+        });
+      }
+
+      console.log(`📁 Uploading ${req.files.length} attachments to R2`);
+
+      const uploadedAttachments = [];
+
+      for (const file of req.files) {
+        try {
+          const attachment = await uploadAttachmentToR2(
+            file.buffer,
+            file.originalname,
+            file.mimetype,
+          );
+
+          template.attachments.push(attachment);
+          uploadedAttachments.push(attachment);
+
+          console.log(`✅ Uploaded: ${file.originalname} (${file.size} bytes)`);
+        } catch (uploadError) {
+          console.error(
+            `❌ Failed to upload ${file.originalname}:`,
+            uploadError,
+          );
+        }
+      }
+
+      await template.save();
+
+      template.completeContent = template.getCompleteEmailHTML();
+      await template.save();
+
+      res.json({
+        success: true,
+        data: {
+          attachments: uploadedAttachments,
+          templateId: template._id,
+          uploadedCount: uploadedAttachments.length,
+          totalCount: req.files.length,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Batch upload error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
 );
 
 // ✅ Remove attachment from email template
@@ -290,9 +406,8 @@ router.delete(
         });
       }
 
-      // Find the attachment
       const attachmentIndex = template.attachments.findIndex(
-        (att) => att._id.toString() === req.params.attachmentId
+        (att) => att._id.toString() === req.params.attachmentId,
       );
 
       if (attachmentIndex === -1) {
@@ -302,27 +417,35 @@ router.delete(
         });
       }
 
-      // Remove the file from storage
       const attachment = template.attachments[attachmentIndex];
-      const fs = require('fs');
-      const filePath = attachment.url.replace('/uploads/', 'uploads/');
 
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (attachment.url && isR2Url(attachment.url)) {
+        try {
+          await deleteFromR2(attachment.url);
+          console.log(`✅ Deleted attachment from R2: ${attachment.filename}`);
+        } catch (deleteError) {
+          console.error(`❌ Failed to delete from R2:`, deleteError);
+        }
       }
 
-      // Remove from array
       template.attachments.splice(attachmentIndex, 1);
+      await template.save();
+
+      template.completeContent = template.getCompleteEmailHTML();
       await template.save();
 
       res.json({
         success: true,
-        data: { removed: true, attachmentId: req.params.attachmentId },
+        data: {
+          removed: true,
+          attachmentId: req.params.attachmentId,
+          filename: attachment.filename,
+        },
       });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
-  }
+  },
 );
 
 // ✅ Get all attachments for a template
@@ -345,5 +468,36 @@ router.get('/:id/attachments', authenticate, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// ✅ Download attachment directly
+router.get(
+  '/:id/attachments/:attachmentId/download',
+  authenticate,
+  async (req, res) => {
+    try {
+      const template = await EmailTemplate.findById(req.params.id);
+
+      if (!template) {
+        return res.status(404).json({
+          success: false,
+          error: 'Template not found',
+        });
+      }
+
+      const attachment = template.attachments.id(req.params.attachmentId);
+
+      if (!attachment) {
+        return res.status(404).json({
+          success: false,
+          error: 'Attachment not found',
+        });
+      }
+
+      res.redirect(attachment.url);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
 
 module.exports = router;

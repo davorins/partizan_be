@@ -1,3 +1,4 @@
+// PaymentConfiguration.js
 const mongoose = require('mongoose');
 
 const paymentConfigurationSchema = new mongoose.Schema({
@@ -14,7 +15,6 @@ const paymentConfigurationSchema = new mongoose.Schema({
   squareConfig: {
     accessToken: {
       type: String,
-      select: false, // Don't include in queries by default
     },
     applicationId: String,
     environment: {

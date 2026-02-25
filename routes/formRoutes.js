@@ -1,9 +1,10 @@
+//formRoutes.js
 const express = require('express');
 const router = express.Router();
 const Form = require('../models/Form');
 const FormSubmission = require('../models/FormSubmission');
 const { authenticate } = require('../utils/auth');
-const { submitPayment } = require('../services/square-payments');
+const { submitPayment } = require('../services/payment-wrapper');
 const { body, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -114,7 +115,7 @@ router.post('/:id/submit', async (req, res) => {
     console.log('Request body keys:', Object.keys(req.body));
     console.log(
       'Data keys:',
-      req.body.data ? Object.keys(req.body.data) : 'No data'
+      req.body.data ? Object.keys(req.body.data) : 'No data',
     );
 
     // Extract ALL possible data
@@ -188,7 +189,7 @@ router.post('/:id/submit', async (req, res) => {
         }
 
         console.log(
-          `Validating form field: ${field.label} (${field.type}), required: ${field.required}, value: "${fieldValue}"`
+          `Validating form field: ${field.label} (${field.type}), required: ${field.required}, value: "${fieldValue}"`,
         );
 
         // Check if value is empty
@@ -217,7 +218,7 @@ router.post('/:id/submit', async (req, res) => {
                 numValue < field.validation.min
               ) {
                 validationErrors.push(
-                  `${field.label} must be at least ${field.validation.min}`
+                  `${field.label} must be at least ${field.validation.min}`,
                 );
               }
               if (
@@ -225,7 +226,7 @@ router.post('/:id/submit', async (req, res) => {
                 numValue > field.validation.max
               ) {
                 validationErrors.push(
-                  `${field.label} must be at most ${field.validation.max}`
+                  `${field.label} must be at most ${field.validation.max}`,
                 );
               }
             }
@@ -242,7 +243,7 @@ router.post('/:id/submit', async (req, res) => {
               trimmedValue.length < field.validation.minLength
             ) {
               validationErrors.push(
-                `${field.label} must be at least ${field.validation.minLength} characters`
+                `${field.label} must be at least ${field.validation.minLength} characters`,
               );
             }
             if (
@@ -250,7 +251,7 @@ router.post('/:id/submit', async (req, res) => {
               trimmedValue.length > field.validation.maxLength
             ) {
               validationErrors.push(
-                `${field.label} must be at most ${field.validation.maxLength} characters`
+                `${field.label} must be at most ${field.validation.maxLength} characters`,
               );
             }
           }
@@ -270,7 +271,7 @@ router.post('/:id/submit', async (req, res) => {
             const cleanedPhone = trimmedValue.replace(/[\s\-\(\)]/g, '');
             if (!phoneRegex.test(cleanedPhone)) {
               validationErrors.push(
-                `${field.label} must be a valid phone number`
+                `${field.label} must be a valid phone number`,
               );
             }
           }
@@ -393,7 +394,7 @@ router.post('/:id/submit', async (req, res) => {
 
       if (submittedPackage && paymentField.paymentConfig?.pricingPackages) {
         const selectedPkg = paymentField.paymentConfig.pricingPackages.find(
-          (pkg) => pkg.name === submittedPackage
+          (pkg) => pkg.name === submittedPackage,
         );
         if (selectedPkg) {
           const quantity = parseInt(submittedQuantity) || selectedPkg.quantity;
@@ -454,7 +455,7 @@ async function sendFormSubmissionConfirmation(form, submission, options = {}) {
 
   console.log(
     'Sending form submission confirmation email to:',
-    submission.userEmail
+    submission.userEmail,
   );
   console.log('Form:', form.title);
   console.log('Submission ID:', submission._id);
@@ -503,7 +504,7 @@ async function sendPaymentConfirmationEmail(form, submission, paymentData) {
   // This function should be implemented in your email service
   console.log(
     'Would send payment confirmation email to:',
-    submission.userEmail
+    submission.userEmail,
   );
   console.log('Payment amount:', paymentData.amount, paymentData.currency);
   console.log('Transaction ID:', paymentData.transactionId);
@@ -633,7 +634,7 @@ router.post(
         if (selectedPackage) {
           // Use selected package
           const selectedPkg = paymentField.paymentConfig.pricingPackages.find(
-            (pkg) => pkg.name === selectedPackage
+            (pkg) => pkg.name === selectedPackage,
           );
 
           if (!selectedPkg) {
@@ -667,10 +668,10 @@ router.post(
           // Use default selected package
           const defaultPkg =
             paymentField.paymentConfig.pricingPackages.find(
-              (pkg) => pkg.defaultSelected && pkg.isEnabled
+              (pkg) => pkg.defaultSelected && pkg.isEnabled,
             ) ||
             paymentField.paymentConfig.pricingPackages.find(
-              (pkg) => pkg.isEnabled
+              (pkg) => pkg.isEnabled,
             );
 
           if (defaultPkg) {
@@ -819,7 +820,7 @@ router.post(
           // Also send notification to form owner(s) if they have email notifications enabled
           if (form.settings?.sendEmail && form.settings?.emailTo?.length > 0) {
             const ownerEmails = form.settings.emailTo.filter(
-              (email) => typeof email === 'string' && email.includes('@')
+              (email) => typeof email === 'string' && email.includes('@'),
             );
 
             if (ownerEmails.length > 0) {
@@ -848,7 +849,7 @@ router.post(
               } catch (ownerEmailError) {
                 console.error(
                   'Error sending owner notification email:',
-                  ownerEmailError
+                  ownerEmailError,
                 );
               }
             }
@@ -884,7 +885,7 @@ router.post(
     } finally {
       session.endSession();
     }
-  }
+  },
 );
 
 // Keep the generic process-payment endpoint for backwards compatibility
@@ -915,7 +916,7 @@ router.post('/process-payment', async (req, res) => {
 
     // Find payment field
     const paymentField = form.fields.find((f) =>
-      fieldId ? f.id === fieldId && f.type === 'payment' : f.type === 'payment'
+      fieldId ? f.id === fieldId && f.type === 'payment' : f.type === 'payment',
     );
     if (!paymentField) {
       return res.status(400).json({
@@ -1230,7 +1231,7 @@ router.put('/:id', authenticate, validateForm, async (req, res) => {
     const form = await Form.findOneAndUpdate(
       { _id: req.params.id, createdBy: req.user.id },
       req.body,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!form) {

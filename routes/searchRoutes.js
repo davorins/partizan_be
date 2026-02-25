@@ -6,27 +6,33 @@ const Payment = require('../models/Payment');
 const { authenticate, isAdmin } = require('../utils/auth');
 const mongoose = require('mongoose');
 
-// Default avatar URLs
-const DEFAULT_PARENT_AVATAR =
-  'https://partizan-be.onrender.com/uploads/avatars/parents.png';
-const DEFAULT_COACH_AVATAR =
-  'https://partizan-be.onrender.com/uploads/avatars/coach.png';
-const DEFAULT_GIRL_AVATAR =
-  'https://partizan-be.onrender.com/uploads/avatars/girl.png';
-const DEFAULT_BOY_AVATAR =
-  'https://partizan-be.onrender.com/uploads/avatars/boy.png';
+// ✅ Default avatars served from Cloudflare R2
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
-// Helper function to get player avatar URL
+if (!R2_PUBLIC_URL) {
+  console.warn(
+    'WARNING: R2_PUBLIC_URL is not set. Default avatars will not resolve correctly.',
+  );
+}
+
+const DEFAULT_PARENT_AVATAR = `${R2_PUBLIC_URL}/avatars/parents.png`;
+const DEFAULT_COACH_AVATAR = `${R2_PUBLIC_URL}/avatars/coach.png`;
+const DEFAULT_GIRL_AVATAR = `${R2_PUBLIC_URL}/avatars/girl.png`;
+const DEFAULT_BOY_AVATAR = `${R2_PUBLIC_URL}/avatars/boy.png`;
+
+// ✅ Returns the avatar URL — handles R2 absolute URLs and legacy relative paths
 const getPlayerAvatar = (player) => {
   if (!player) return DEFAULT_BOY_AVATAR;
 
   if (player.avatar) {
-    if (player.avatar.includes('res.cloudinary.com')) {
-      return player.avatar;
-    }
+    // Already an absolute URL (R2 or any https) — use directly
+    if (player.avatar.startsWith('http')) return player.avatar;
+
+    // Migrate legacy relative paths to R2
     if (player.avatar.startsWith('/uploads/avatars/')) {
-      return `https://partizan-be.onrender.com${player.avatar}`;
+      return `${R2_PUBLIC_URL}/avatars/${player.avatar.split('/').pop()}`;
     }
+
     return player.avatar;
   }
 
@@ -67,14 +73,10 @@ router.get('/all', authenticate, async (req, res) => {
     const searchTerm = req.query.q;
     if (!searchTerm) return res.json([]);
 
-    // Check if search term is exactly 4 digits (potential card search)
     const isCardSearch = /^\d{4}$/.test(searchTerm);
     const isAdminUser = req.user?.role === 'admin';
-
-    // Clean phone number search by removing non-digits
     const phoneSearchTerm = searchTerm.replace(/\D/g, '');
 
-    // Base searches (players, parents with guardians, coaches, schools)
     const baseSearches = [
       Player.find({
         $or: [
@@ -148,7 +150,6 @@ router.get('/all', authenticate, async (req, res) => {
       ]),
     ];
 
-    // Payment search for admins - with safe population
     const paymentSearch =
       isCardSearch && isAdminUser
         ? (async () => {
@@ -161,13 +162,11 @@ router.get('/all', authenticate, async (req, res) => {
               })
               .limit(10)
               .lean();
-
-            // Safely populate player data
             return Promise.all(
               payments.map(async (payment) => {
                 await safePopulatePlayer(payment);
                 return payment;
-              })
+              }),
             );
           })()
         : Promise.resolve([]);
@@ -175,7 +174,6 @@ router.get('/all', authenticate, async (req, res) => {
     const [players, parents, coaches, schoolNames, paymentMatches] =
       await Promise.all([...baseSearches, paymentSearch]);
 
-    // Format results
     const formatPlayer = (player) => ({
       id: player._id,
       type: 'player',
@@ -197,7 +195,6 @@ router.get('/all', authenticate, async (req, res) => {
     const formatParent = (parent) => {
       const results = [];
 
-      // Check if primary parent matches search
       if (
         parent.fullName.match(new RegExp(searchTerm, 'i')) ||
         parent.email.match(new RegExp(searchTerm, 'i')) ||
@@ -218,7 +215,6 @@ router.get('/all', authenticate, async (req, res) => {
         });
       }
 
-      // Check additional guardians
       parent.additionalGuardians?.forEach((guardian) => {
         if (
           guardian.fullName.match(new RegExp(searchTerm, 'i')) ||
@@ -278,7 +274,6 @@ router.get('/all', authenticate, async (req, res) => {
           },
         });
 
-        // Include matching guardians from payment
         payment.parentId.additionalGuardians?.forEach((guardian) => {
           results.push({
             id: guardian._id,
@@ -328,7 +323,6 @@ router.get('/all', authenticate, async (req, res) => {
       return results;
     };
 
-    // Combine all results
     const allResults = [
       ...paymentMatches.flatMap(formatPaymentMatches),
       ...parents.flatMap(formatParent),

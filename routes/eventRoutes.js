@@ -1,3 +1,4 @@
+// eventRoutes.js
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
@@ -6,7 +7,7 @@ const Form = require('../models/Form');
 const Parent = require('../models/Parent');
 const { authenticate } = require('../utils/auth');
 const FormSubmission = require('../models/FormSubmission');
-const { submitPayment } = require('../services/square-payments');
+const { submitPayment } = require('../services/payment-wrapper');
 const mongoose = require('mongoose');
 const moment = require('moment');
 
@@ -49,7 +50,7 @@ router.get('/schools', async (req, res) => {
     const events = await Event.find({ 'school.name': { $exists: true } });
     const schools = events.map((e) => e.school).filter(Boolean);
     const uniqueSchools = [...new Map(schools.map((s) => [s.name, s]))].map(
-      ([_, s]) => s
+      ([_, s]) => s,
     );
     res.json(uniqueSchools);
   } catch (err) {
@@ -141,7 +142,7 @@ router.post(
     } catch (err) {
       res.status(400).json({ message: err.message });
     }
-  }
+  },
 );
 
 // Update event with form validation
@@ -229,7 +230,7 @@ router.put(
     } catch (err) {
       res.status(400).json({ message: err.message });
     }
-  }
+  },
 );
 
 // Delete event
@@ -420,7 +421,7 @@ router.post('/populate-system-events', authenticate, async (req, res) => {
 
     const createdEvents = [];
     const systemUserId = new mongoose.Types.ObjectId(
-      '000000000000000000000000'
+      '000000000000000000000000',
     );
 
     // Check which events already exist
