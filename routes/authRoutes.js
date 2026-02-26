@@ -352,6 +352,7 @@ router.post(
         })),
         registerMethod: registerType,
         agreeToTerms: registerType === 'adminCreate' ? true : agreeToTerms,
+        role: isCoach ? 'coach' : 'user',
       };
 
       const parent = new Parent(parentData);
@@ -1045,7 +1046,7 @@ router.post(
           paymentComplete: false,
         })),
         agreeToTerms,
-        role: 'user',
+        role: isCoach ? 'coach' : 'user',
         registrationComplete: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -5801,6 +5802,7 @@ router.get(
     query('sort').optional().isString(),
     query('dateFrom').optional().isString(),
     query('dateTo').optional().isString(),
+    query('loadAll').optional().isString(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -5823,6 +5825,7 @@ router.get(
         sort = 'recent',
         dateFrom,
         dateTo,
+        loadAll, // Get loadAll parameter
       } = req.query;
 
       // ── Season helpers (shared across status + transform) ──────────────────
@@ -5857,9 +5860,6 @@ router.get(
       const sr = (base) => new RegExp(base, 'i');
 
       // ── Build filter clauses ───────────────────────────────────────────────
-      // Every filter appends a clause to this array.
-      // At the end we combine with $and so ALL filters must be satisfied.
-      // This means filters never overwrite each other regardless of combination.
       const clauses = [];
 
       // ── Search ─────────────────────────────────────────────────────────────
@@ -5873,8 +5873,6 @@ router.get(
       }
 
       // ── Grade ──────────────────────────────────────────────────────────────
-      // DB may store grade as "5th" (formatted) or "5" (raw number string)
-      // so we match all variants
       if (grade) {
         const gradeNum = grade.replace(/\D/g, '');
         if (gradeNum) {
@@ -5891,7 +5889,6 @@ router.get(
       }
 
       // ── Age ────────────────────────────────────────────────────────────────
-      // Age is not stored — derive a dob range
       if (age !== undefined && age !== null) {
         const ageNum = parseInt(age, 10);
         if (!isNaN(ageNum)) {
@@ -5911,10 +5908,6 @@ router.get(
       }
 
       // ── Status ─────────────────────────────────────────────────────────────
-      // Mirrors getPlayerStatus() in season.ts:
-      //   Active          = current OR next season reg, paymentComplete: true
-      //   Pending Payment = current OR next season reg, paymentComplete: false
-      //   Inactive        = no registration for current or next season
       if (status) {
         const { currentSeason, currentYear, nextSeason, nextSeasonYear } =
           getSeasonInfo();
@@ -6017,7 +6010,6 @@ router.get(
       }
 
       // ── Season / Year ──────────────────────────────────────────────────────
-      // Skip when status filter already applies a seasons condition
       if (!status) {
         if (season && year) {
           clauses.push({
@@ -6055,8 +6047,6 @@ router.get(
       }
 
       // ── Combine all clauses ────────────────────────────────────────────────
-      // $and ensures every active filter must be satisfied simultaneously.
-      // A single clause is applied directly to avoid unnecessary $and wrapping.
       const query =
         clauses.length === 0
           ? {}
@@ -6064,13 +6054,7 @@ router.get(
             ? clauses[0]
             : { $and: clauses };
 
-      // ── Pagination ─────────────────────────────────────────────────────────
-      const pageNum = Math.max(1, parseInt(page, 10));
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
-      const skip = (pageNum - 1) * limitNum;
-
       // ── Sort ───────────────────────────────────────────────────────────────
-      // recentlyViewed is handled client-side (localStorage)
       let sortOptions = {};
       switch (sort) {
         case 'asc':
@@ -6091,16 +6075,49 @@ router.get(
           break;
       }
 
-      // ── Execute ────────────────────────────────────────────────────────────
-      const [total, players] = await Promise.all([
-        Player.countDocuments(query),
-        Player.find(query)
+      // ── Handle loadAll vs pagination ───────────────────────────────────────
+      const total = await Player.countDocuments(query);
+
+      let players;
+      let responsePagination;
+
+      if (loadAll === 'true') {
+        // Load all records without pagination
+        players = await Player.find(query)
+          .populate('parentId', 'fullName email phone')
+          .sort(sortOptions)
+          .lean();
+
+        responsePagination = {
+          total,
+          page: 1,
+          limit: total,
+          pages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        };
+      } else {
+        // Apply pagination
+        const pageNum = Math.max(1, parseInt(page, 10));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
+        const skip = (pageNum - 1) * limitNum;
+
+        players = await Player.find(query)
           .populate('parentId', 'fullName email phone')
           .sort(sortOptions)
           .skip(skip)
           .limit(limitNum)
-          .lean(),
-      ]);
+          .lean();
+
+        responsePagination = {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum),
+          hasNextPage: pageNum < Math.ceil(total / limitNum),
+          hasPrevPage: pageNum > 1,
+        };
+      }
 
       // ── Transform ──────────────────────────────────────────────────────────
       const {
@@ -6171,14 +6188,7 @@ router.get(
 
       res.json({
         data: transformedPlayers,
-        pagination: {
-          total,
-          page: pageNum,
-          limit: limitNum,
-          pages: Math.ceil(total / limitNum),
-          hasNextPage: pageNum < Math.ceil(total / limitNum),
-          hasPrevPage: pageNum > 1,
-        },
+        pagination: responsePagination,
       });
     } catch (error) {
       console.error('Error fetching paginated players:', error);
