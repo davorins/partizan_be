@@ -87,7 +87,7 @@ router.get(
       console.error('Error fetching available players:', error);
       res.status(500).json({ error: 'Failed to fetch available players' });
     }
-  }
+  },
 );
 
 // ✅ FIX: Move metadata route ABOVE the :id route
@@ -122,7 +122,7 @@ router.get('/internal-teams/:id', authenticate, async (req, res) => {
       .populate('coachIds', 'fullName email phone avatar')
       .populate(
         'playerIds',
-        'fullName gender dob age schoolName grade avatar seasons parents'
+        'fullName gender dob age schoolName grade avatar seasons parents',
       );
 
     if (!team) {
@@ -208,7 +208,7 @@ router.post(
       console.error('Error creating internal team:', error);
       res.status(500).json({ error: 'Failed to create team' });
     }
-  }
+  },
 );
 
 // Update internal team
@@ -229,7 +229,7 @@ router.put('/internal-teams/:id', authenticate, async (req, res) => {
         notes,
         updatedAt: new Date(),
       },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     )
       .populate('coachIds', 'fullName email phone')
       .populate('playerIds', 'fullName gender dob schoolName grade');
@@ -248,20 +248,25 @@ router.put('/internal-teams/:id', authenticate, async (req, res) => {
 // Delete internal team (soft delete)
 router.delete('/internal-teams/:id', authenticate, async (req, res) => {
   try {
-    const team = await InternalTeam.findByIdAndUpdate(
-      req.params.id,
-      { status: 'inactive' },
-      { new: true }
-    );
+    const team = await InternalTeam.findByIdAndDelete(req.params.id);
 
     if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Team not found',
+      });
     }
 
-    res.json({ message: 'Team deleted successfully' });
+    res.json({
+      success: true,
+      message: 'Team permanently deleted from database',
+    });
   } catch (error) {
     console.error('Error deleting internal team:', error);
-    res.status(500).json({ error: 'Failed to delete team' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete team',
+    });
   }
 });
 
