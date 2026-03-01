@@ -52,6 +52,10 @@ router.get(
       if (grade) {
         query.grade = grade;
       }
+      // ✅ ADD THIS: Apply gender filter if provided
+      if (gender) {
+        query.gender = gender;
+      }
 
       console.log('Available players query:', query);
 
@@ -90,7 +94,6 @@ router.get(
   },
 );
 
-// ✅ FIX: Move metadata route ABOVE the :id route
 // Get available seasons and metadata
 router.get('/internal-teams/metadata', authenticate, async (req, res) => {
   try {
