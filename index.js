@@ -45,6 +45,8 @@ const initCalendarEvents = require('./scripts/initCalendarEvents');
 const healthCheck = require('./health');
 const formFieldRoutes = require('./routes/formFieldRoutes');
 const advertisementRoutes = require('./routes/advertisementRoutes');
+const subscriptionRoutes = require('./routes/subscription-routes');
+const { startScheduler } = require('./services/subscription-scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -150,6 +152,7 @@ app.use('/api/teams', teamsRoutes);
 app.use('/api/page-builder', pageBuilder);
 app.get('/api/health', healthCheck);
 app.use('/api/form-fields', formFieldRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 
 // Backend route for fetching player data
 app.get('/api/player/:playerId', async (req, res) => {
@@ -209,6 +212,11 @@ mongoose.connection.once('open', () => {
       console.error('⚠️ Failed to initialize calendar events:', error.message);
     }
   }, 5000);
+});
+
+// Start the scheduler after DB connects
+mongoose.connection.once('open', () => {
+  startScheduler();
 });
 
 // Update player details

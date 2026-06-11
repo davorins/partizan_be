@@ -366,6 +366,38 @@ const parentSchema = new mongoose.Schema(
         default: Date.now,
       },
     },
+    cloverCustomerId: {
+      type: String,
+      default: null,
+    },
+    savedCardId: {
+      type: String,
+      default: null,
+    },
+    savedCardLast4: {
+      type: String,
+      default: null,
+    },
+    savedCardBrand: {
+      type: String,
+      default: null,
+    },
+    subscription: {
+      active: { type: Boolean, default: false },
+      plan: { type: String, default: null },
+      packageName: { type: String, default: null },
+      amountCents: { type: Number, default: null },
+      playerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
+      season: { type: String, default: null },
+      year: { type: Number, default: null },
+      eventId: { type: String, default: null },
+      nextBillingDate: { type: Date, default: null },
+      startedAt: { type: Date, default: null },
+      cancelledAt: { type: Date, default: null },
+      lastChargedAt: { type: Date, default: null },
+      failedAttempts: { type: Number, default: 0 },
+      lastFailureReason: { type: String, default: null },
+    },
   },
   {
     timestamps: true,
