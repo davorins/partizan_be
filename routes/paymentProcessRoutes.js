@@ -1033,24 +1033,24 @@ router.post(
       try {
         await sendEmail({
           to: email,
-          subject: 'Payment Confirmation - Bothell Select Basketball',
+          subject: 'Payment Confirmation - Partizan Basketball',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
               <div style="text-align: center; margin-bottom: 20px;">
-                <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;">
+                <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
               </div>
-              <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+              <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
                 <h1 style="margin: 0;">🎉 Payment Confirmed!</h1>
               </div>
               <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
                 <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
                 <p style="font-size: 16px;">Thank you for your payment! Your registration has been confirmed.</p>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
                   <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Payment Details</h3>
                   <p style="margin: 8px 0;"><strong>Number of Players:</strong> ${players.length}</p>
                   <p style="margin: 8px 0;"><strong>Fee per Player:</strong> $${perPlayerAmount}</p>
                   <p style="margin: 8px 0;"><strong>Total Amount Paid:</strong> $${amount / 100}</p>
-                  <p style="margin: 8px 0;"><strong>Season:</strong> ${players[0]?.season || 'Bothell Select Team'} ${players[0]?.year || new Date().getFullYear()}</p>
+                  <p style="margin: 8px 0;"><strong>Season:</strong> ${players[0]?.season || 'Partizan Team'} ${players[0]?.year || new Date().getFullYear()}</p>
                   <p style="margin: 8px 0;"><strong>Players Registered:</strong></p>
                   <ul style="margin: 8px 0;">
                     ${updatedPlayers.map((p) => `<li>${p.fullName}</li>`).join('')}
@@ -1062,8 +1062,8 @@ router.post(
                   <li>Look out for welcome materials from your coach</li>
                   <li>Practice schedules will be shared via email and the team portal</li>
                 </ul>
-                <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
-                <p style="font-size: 16px; font-weight: bold;">Welcome to the Bothell Select family! 🏀</p>
+                <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
+                <p style="font-size: 16px; font-weight: bold;">Welcome to the Partizan family! 🏀</p>
               </div>
             </div>
           `,
@@ -1474,19 +1474,19 @@ router.post(
       try {
         await sendEmail({
           to: email,
-          subject: 'Training Payment Confirmation - Bothell Select Basketball',
+          subject: 'Training Payment Confirmation - Partizan Basketball',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
               <div style="text-align: center; margin-bottom: 20px;">
-                <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;">
+                <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
               </div>
-              <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+              <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
                 <h1 style="margin: 0;">🏀 Training Payment Confirmed!</h1>
               </div>
               <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
                 <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
                 <p style="font-size: 16px;">Thank you for your training payment! Your registration has been confirmed.</p>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
                   <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Training Payment Details</h3>
                   <p style="margin: 8px 0;"><strong>Training Program:</strong> ${players[0]?.season || 'Basketball Training'}</p>
                   <p style="margin: 8px 0;"><strong>Year:</strong> ${players[0]?.year || new Date().getFullYear()}</p>
@@ -1505,7 +1505,7 @@ router.post(
                   <li>Please arrive 15 minutes early for your first session</li>
                   <li>Bring basketball shoes, water bottle, and appropriate workout attire</li>
                 </ul>
-                <p style="font-size: 14px; color: #555;">If you have any questions about the training program, please contact us at bothellselect@proton.me</p>
+                <p style="font-size: 14px; color: #555;">If you have any questions about the training program, please contact us at partizanhoops@proton.me</p>
                 <p style="font-size: 16px; font-weight: bold;">We look forward to training with you! 🏀</p>
               </div>
             </div>
@@ -1784,19 +1784,19 @@ router.post('/process', authenticate, async (req, res) => {
     try {
       await sendEmail({
         to: buyerEmailAddress,
-        subject: 'Payment Confirmation - Bothell Select Basketball',
+        subject: 'Payment Confirmation - Partizan Basketball',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;">
+              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px; height: auto;">
             </div>
-            <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+            <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
               <h1 style="margin: 0;">🎉 Payment Confirmed!</h1>
             </div>
             <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
               <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
               <p style="font-size: 16px;">Thank you for your payment! Your registration has been confirmed.</p>
-              <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+              <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
                 <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Payment Details</h3>
                 <p style="margin: 8px 0;"><strong>Number of Players:</strong> ${players.length}</p>
                 <p style="margin: 8px 0;"><strong>Total Amount Paid:</strong> $${amount / 100}</p>
@@ -1806,8 +1806,8 @@ router.post('/process', authenticate, async (req, res) => {
                   ${updatedPlayers.map((p) => `<li>${p.fullName}</li>`).join('')}
                 </ul>
               </div>
-              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
-              <p style="font-size: 16px; font-weight: bold;">Thank you for choosing Bothell Select Basketball! 🏀</p>
+              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
+              <p style="font-size: 16px; font-weight: bold;">Thank you for choosing Partizan Basketball! 🏀</p>
             </div>
           </div>
         `,

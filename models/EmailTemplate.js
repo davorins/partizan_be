@@ -33,7 +33,7 @@ const emailTemplateSchema = new mongoose.Schema(
     signatureConfig: {
       organizationName: {
         type: String,
-        default: 'Bothell Select',
+        default: 'Partizan',
         trim: true,
       },
       title: {
@@ -59,7 +59,7 @@ const emailTemplateSchema = new mongoose.Schema(
       website: {
         type: String,
         trim: true,
-        default: 'https://bothellselect.com',
+        default: 'https://partizanhoops.com',
       },
       additionalInfo: {
         type: String,
@@ -219,9 +219,9 @@ const extractBodyContent = (html) => {
       '',
     );
 
-    // Remove Bothell Select header
+    // Remove Partizan header
     content = content.replace(
-      /<div[^>]*>\s*<img[^>]*alt="Bothell Select Logo"[^>]*>\s*<\/div>/i,
+      /<div[^>]*>\s*<img[^>]*alt="Partizan Logo"[^>]*>\s*<\/div>/i,
       '',
     );
 
@@ -245,10 +245,7 @@ const extractBodyContent = (html) => {
     );
 
     // Remove copyright footer
-    content = content.replace(
-      /<p[^>]*>&copy;[^<]*Bothell Select[^<]*<\/p>/i,
-      '',
-    );
+    content = content.replace(/<p[^>]*>&copy;[^<]*Partizan[^<]*<\/p>/i, '');
 
     // Clean up extra whitespace
     content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
@@ -304,7 +301,7 @@ const addEmailStyles = (html) => {
   // Style links
   styledHtml = styledHtml.replace(
     /<a(\s[^>]*)?>/g,
-    '<a style="color: #506ee4; text-decoration: none; border-bottom: 1px solid #506ee4; padding-bottom: 1px;"$1>',
+    '<a style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;"$1>',
   );
 
   // Style bold and italic
@@ -321,7 +318,7 @@ const addEmailStyles = (html) => {
   // Style blockquotes
   styledHtml = styledHtml.replace(
     /<blockquote(\s[^>]*)?>/g,
-    '<blockquote style="margin: 20px 0; padding: 15px 20px; background-color: #f8f9fa; border-left: 4px solid #506ee4; color: #555; font-style: italic;"$1>',
+    '<blockquote style="margin: 20px 0; padding: 15px 20px; background-color: #f8f9fa; border-left: 4px solid #594230; color: #555; font-style: italic;"$1>',
   );
 
   return styledHtml;
@@ -369,7 +366,7 @@ emailTemplateSchema.methods.generateAttachmentsHTML = function () {
       const fileType = attachment.mimeType || 'File';
 
       return `
-      <div style="margin: 12px 0; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #506ee4;">
+      <div style="margin: 12px 0; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #594230;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="font-size: 24px; line-height: 1;">${fileIcon}</div>
           <div style="flex: 1;">
@@ -384,7 +381,7 @@ emailTemplateSchema.methods.generateAttachmentsHTML = function () {
             ? `
           <div style="margin-top: 8px; font-size: 13px;">
             <a href="${attachment.url}" 
-               style="color: #506ee4; text-decoration: none; border-bottom: 1px solid #506ee4; padding-bottom: 1px;"
+               style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;"
                target="_blank">
               🔗 Direct download link
             </a>
@@ -425,12 +422,12 @@ emailTemplateSchema.methods.generateSignatureHTML = function () {
   }
 
   const {
-    organizationName = 'Bothell Select',
+    organizationName = 'Partizan',
     title = '',
     fullName = '',
     phone = '',
     email = '',
-    website = 'https://bothellselect.com',
+    website = 'https://partizanhoops.com',
     additionalInfo = '',
   } = this.signatureConfig;
 
@@ -448,8 +445,8 @@ emailTemplateSchema.methods.generateSignatureHTML = function () {
           
           <div style="margin-top: 12px; font-size: 14px;">
             ${phone ? `<div style="margin-bottom: 4px;"><span style="color: #666;">Phone:</span> <span style="color: #333;">${phone}</span></div>` : ''}
-            ${email ? `<div style="margin-bottom: 4px;"><span style="color: #666;">Email:</span> <a href="mailto:${email}" style="color: #506ee4; text-decoration: none;">${email}</a></div>` : ''}
-            ${website ? `<div style="margin-bottom: 4px;"><span style="color: #666;">Website:</span> <a href="${website}" style="color: #506ee4; text-decoration: none;">${website}</a></div>` : ''}
+            ${email ? `<div style="margin-bottom: 4px;"><span style="color: #666;">Email:</span> <a href="mailto:${email}" style="color: #594230; text-decoration: none;">${email}</a></div>` : ''}
+            ${website ? `<div style="margin-bottom: 4px;"><span style="color: #666;">Website:</span> <a href="${website}" style="color: #594230; text-decoration: none;">${website}</a></div>` : ''}
             ${additionalInfo ? `<div style="margin-top: 8px; color: #666; font-size: 13px;">${additionalInfo}</div>` : ''}
           </div>
         </div>
@@ -481,7 +478,7 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
   if (
     this.content.includes('<!DOCTYPE') ||
     this.content.includes('email-body') ||
-    this.content.includes('Bothell Select Logo')
+    this.content.includes('Partizan Logo')
   ) {
     // Content already has headers/footers, return it as-is
     return this.content;
@@ -530,7 +527,7 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
             <tr>
               <td style="padding: 30px 30px 0;">
                 <div style="text-align: left; border-bottom: 1px solid #eaeaea; padding-bottom: 20px;">
-                  <img src="${logoUrl}" alt="Bothell Select Logo" height="30" style="display: block; margin: 0; height: 30px;" 
+                  <img src="${logoUrl}" alt="Partizan Logo" height="30" style="display: block; margin: 0; height: 30px;" 
                        onerror="this.onerror=null; this.src='${baseUrl}/logo/logo.png';" />
                 </div>
               </td>
@@ -545,11 +542,11 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
             <tr>
               <td style="padding: 0 30px;">
                 <div style="text-align: center; font-size: 13px; color: #666; padding: 30px 0 20px; margin-top: 40px; border-top: 1px solid #eaeaea;">
-                  <p style="margin: 0 0 8px;"> you're part of <strong style="color: #333;">Bothell Select</strong>.</p>
+                  <p style="margin: 0 0 8px;"> you're part of <strong style="color: #333;">Partizan</strong>.</p>
                   <p style="margin: 0;">
-                    <a href="https://bothellselect.com/unsubscribe" style="color: #506ee4; text-decoration: none; border-bottom: 1px solid #506ee4; padding-bottom: 1px;">Unsubscribe</a> • 
-                    <a href="https://bothellselect.com/contact" style="color: #506ee4; text-decoration: none; border-bottom: 1px solid #506ee4; padding-bottom: 1px;">Contact Us</a> • 
-                    <a href="https://bothellselect.com" style="color: #506ee4; text-decoration: none; border-bottom: 1px solid #506ee4; padding-bottom: 1px;">Website</a>
+                    <a href="https://partizanhoops.com/unsubscribe" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Unsubscribe</a> • 
+                    <a href="https://partizanhoops.com/contact" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Contact Us</a> • 
+                    <a href="https://partizanhoops.com" style="color: #594230; text-decoration: none; border-bottom: 1px solid #594230; padding-bottom: 1px;">Website</a>
                   </p>
                 </div>
               </td>
@@ -558,7 +555,7 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top: 20px;">
             <tr>
               <td align="center" style="padding: 20px 0;">
-                <p style="margin: 0; font-size: 12px; color: #999;">&copy; ${new Date().getFullYear()} Bothell Select. All rights reserved.</p>
+                <p style="margin: 0; font-size: 12px; color: #999;">&copy; ${new Date().getFullYear()} Partizan. All rights reserved.</p>
               </td>
             </tr>
           </table>

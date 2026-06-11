@@ -21,7 +21,7 @@ const sendEmailNotification = async (emails, message) => {
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">New Notification from Bothell Select</h2>
+        <h2 style="color: #2563eb;">New Notification from Partizan</h2>
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px;">
           <p style="font-size: 16px; line-height: 1.5;">${message}</p>
         </div>
@@ -32,9 +32,9 @@ const sendEmailNotification = async (emails, message) => {
     `;
 
     const { data, error } = await resend.emails.send({
-      from: 'Bothell Select <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: emails,
-      subject: 'New Notification from Bothell Select',
+      subject: 'New Notification from Partizan',
       html: emailHtml,
     });
 

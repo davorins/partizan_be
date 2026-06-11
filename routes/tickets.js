@@ -175,7 +175,7 @@ router.post('/email-receipt', async (req, res) => {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .header {
-            background: #506ee4;
+            background: #594230;
             color: white;
             padding: 30px 20px;
             text-align: center;
@@ -231,7 +231,7 @@ router.post('/email-receipt', async (req, res) => {
           }
           .btn-receipt {
             display: inline-block;
-            background: #506ee4;
+            background: #594230;
             color: white;
             text-decoration: none;
             padding: 12px 30px;
@@ -353,7 +353,7 @@ router.post('/email-receipt', async (req, res) => {
             
             <div class="info-box">
               <h4>💡 Need Help?</h4>
-              <p>If you have any questions about your purchase, please contact our support team at bothellselect@proton.me</p>
+              <p>If you have any questions about your purchase, please contact our support team at partizanhoops@proton.me</p>
             </div>
             
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
@@ -367,8 +367,8 @@ router.post('/email-receipt', async (req, res) => {
           </div>
           
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Bothell Select Basketball. All rights reserved.</p>
-            <p>bothellselect@proton.me</p>
+            <p>© ${new Date().getFullYear()} Partizan Basketball. All rights reserved.</p>
+            <p>partizanhoops@proton.me</p>
           </div>
         </div>
       </body>

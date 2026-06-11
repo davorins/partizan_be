@@ -20,13 +20,13 @@ const r2Client = new S3Client({
   },
 });
 
-const BUCKET_NAME = process.env.R2_BUCKET || 'bothellselect';
+const BUCKET_NAME = process.env.R2_BUCKET || 'partizanhoops';
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
 // R2 logo URL
 const R2_LOGO_URL = process.env.R2_PUBLIC_URL
   ? `${process.env.R2_PUBLIC_URL}/logo/logo.png`
-  : 'https://bothellselect.com/assets/img/logo.png'; // Fallback to website logo if R2 not configured
+  : 'https://partizanhoops.com/assets/img/logo.png'; // Fallback to website logo if R2 not configured
 
 /**
  * Extract key from R2 URL - handles both public URLs and direct paths
@@ -379,8 +379,8 @@ async function sendEmail({
     );
 
     const emailData = {
-      from: 'Bothell Select <info@bothellselect.com>',
-      reply_to: 'bothellselect@proton.me',
+      from: 'Partizan <info@partizanhoops.com>',
+      reply_to: 'partizanhoops@proton.me',
       to,
       subject,
       html: finalHtml,
@@ -547,24 +547,24 @@ async function sendWelcomeEmail(parentId, playerId) {
       console.warn('Welcome email template not found, using default template');
       // Use a default template if database template not found
       const defaultTemplate = {
-        subject: 'Welcome to Bothell Select Basketball!',
+        subject: 'Welcome to Partizan Basketball!',
         content: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;" 
-                   onerror="this.onerror=null; this.src='https://bothellselect.com/assets/img/logo.png';" />
+              <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+                   onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
             </div>
             
-            <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
-              <h1 style="margin: 0;">Welcome to Bothell Select Basketball!</h1>
+            <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+              <h1 style="margin: 0;">Welcome to Partizan Basketball!</h1>
             </div>
             
             <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
               <p style="font-size: 16px;">Dear [parent.fullName],</p>
               
-              <p style="font-size: 16px;">Welcome to the Bothell Select Basketball family! We're excited to have [player.firstName] join our program.</p>
+              <p style="font-size: 16px;">Welcome to the Partizan Basketball family! We're excited to have [player.firstName] join our program.</p>
               
-              <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+              <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
                 <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Registration Confirmed</h3>
                 <p style="margin: 8px 0;"><strong>Player:</strong> [player.fullName]</p>
               </div>
@@ -577,9 +577,9 @@ async function sendWelcomeEmail(parentId, playerId) {
                 <li>Practice schedules will be shared via email and the team portal</li>
               </ul>
               
-              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
+              <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
               
-              <p style="font-size: 16px; font-weight: bold;">Welcome to the Bothell Select family! 🏀</p>
+              <p style="font-size: 16px; font-weight: bold;">Welcome to the Partizan family! 🏀</p>
             </div>
           </div>
         `,
@@ -677,11 +677,11 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;" 
-               onerror="this.onerror=null; this.src='https://bothellselect.com/assets/img/logo.png';" />
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
-        <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+        <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
           <h1 style="margin: 0;">🏀 Tournament Registration Received!</h1>
         </div>
         
@@ -690,7 +690,7 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
           
           <p style="font-size: 16px;">Thank you for registering for the ${tournament} ${year} tournament!</p>
           
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
             <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Registration Details</h3>
             ${team ? `<p style="margin: 8px 0;"><strong>Team:</strong> ${team.name}</p>` : ''}
             <p style="margin: 8px 0;"><strong>Tournament:</strong> ${tournament} ${year}</p>
@@ -710,14 +710,14 @@ async function sendTournamentWelcomeEmail(parentId, teamId, tournament, year) {
             <p style="margin: 8px 0; color: #856404;">Your tournament registration is <strong>not complete</strong> until payment is received. Please complete payment as soon as possible to secure your team's spot.</p>
           </div>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">We look forward to seeing you at the tournament! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
-          <p style="margin: 0;">Bothell Select Basketball<br>
-          bothellselect@proton.me</p>
+          <p style="margin: 0;">Partizan Basketball<br>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -795,11 +795,11 @@ async function sendTournamentRegistrationEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;" 
-               onerror="this.onerror=null; this.src='https://bothellselect.com/assets/img/logo.png';" />
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
-        <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+        <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
           <h1 style="margin: 0;">🎉 Tournament Registration Confirmed!</h1>
         </div>
         
@@ -808,7 +808,7 @@ async function sendTournamentRegistrationEmail(
           
           <p style="font-size: 16px;">Thank you for your payment! Your tournament registration for ${teamCount} team(s) has been confirmed.</p>
           
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
             <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Payment & Registration Details</h3>
             <p style="margin: 8px 0;"><strong>Number of Teams:</strong> ${teamCount}</p>
             <p style="margin: 8px 0;"><strong>Tournament:</strong> ${tournament} ${year}</p>
@@ -840,14 +840,14 @@ async function sendTournamentRegistrationEmail(
             <p style="margin: 8px 0; color: #0f5132;">Your team(s) are officially registered for the tournament. We'll be in touch soon with more details.</p>
           </div>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">Good luck in the tournament! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
-          <p style="margin: 0;">Bothell Select Basketball<br>
-          bothellselect@proton.me</p>
+          <p style="margin: 0;">Partizan Basketball<br>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -992,7 +992,7 @@ async function sendPaymentConfirmationEmail(
     );
     populatedContent = populatedContent.replace(
       /\[payment\.season\]/g,
-      season || 'Bothell Select Team',
+      season || 'Partizan Team',
     );
     populatedContent = populatedContent.replace(
       /\[payment\.year\]/g,
@@ -1058,7 +1058,7 @@ async function sendResetEmail(email, resetToken) {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Bothell Select <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: email,
       subject: 'Password Reset Request',
       html,
@@ -1111,25 +1111,25 @@ async function sendTrainingRegistrationPendingEmail(
     }
 
     // 4. Build the registration email
-    const subject = `Registration Received - Bothell Select ${season} ${year}`;
+    const subject = `Registration Received - Partizan ${season} ${year}`;
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;" 
-               onerror="this.onerror=null; this.src='https://bothellselect.com/assets/img/logo.png';" />
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
-        <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+        <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
           <h1 style="margin: 0;">🏀 Registration Received!</h1>
         </div>
         
         <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
           <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
           
-          <p style="font-size: 16px;">Thank you for registering for the Bothell Select ${season} ${year} program! We've received your registration details for ${players.length} player(s).</p>
+          <p style="font-size: 16px;">Thank you for registering for the Partizan ${season} ${year} program! We've received your registration details for ${players.length} player(s).</p>
           
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
             <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Training Registration Details</h3>
             <p style="margin: 8px 0;"><strong>Number of Players:</strong> ${players.length}</p>
             ${packageDetails}
@@ -1160,20 +1160,20 @@ async function sendTrainingRegistrationPendingEmail(
           </ul>
 
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard" 
-                style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+            <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard" 
+                style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
               Go to Your Dashboard
             </a>
           </div>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">We look forward to training with you! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
-          <p style="margin: 0;">Bothell Select Basketball<br>
-          bothellselect@proton.me</p>
+          <p style="margin: 0;">Partizan Basketball<br>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -1229,7 +1229,7 @@ async function sendRegistrationPendingEmail(
     const players = await Player.find({ _id: { $in: playerIds } });
 
     // 3. Build the pending registration email
-    const subject = `Registration Received - Bothell Select ${season} ${year}`;
+    const subject = `Registration Received - Partizan ${season} ${year}`;
 
     // Calculate package info if available
     let packageDetails = '';
@@ -1243,20 +1243,20 @@ async function sendRegistrationPendingEmail(
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;" 
-               onerror="this.onerror=null; this.src='https://bothellselect.com/assets/img/logo.png';" />
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
-        <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+        <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
           <h1 style="margin: 0;">🏀 Registration Received!</h1>
         </div>
         
         <div style="background: white; padding: 20px; border-radius: 0 0 5px 5px;">
           <p style="font-size: 16px;">Dear ${parent.fullName || 'Valued Customer'},</p>
           
-          <p style="font-size: 16px;">Thank you for registering for the Bothell Select ${season} ${year} program! We've received your registration details for ${players.length} player(s).</p>
+          <p style="font-size: 16px;">Thank you for registering for the Partizan ${season} ${year} program! We've received your registration details for ${players.length} player(s).</p>
           
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #506ee4;">
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #594230;">
             <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">Registration Details</h3>
             <p style="margin: 8px 0;"><strong>Number of Players:</strong> ${players.length}</p>
             ${packageDetails}
@@ -1286,14 +1286,14 @@ async function sendRegistrationPendingEmail(
             <li>Practice schedules will be shared via email</li>
           </ul>
           
-          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at bothellselect@proton.me</p>
+          <p style="font-size: 14px; color: #555;">If you have any questions, please contact us at partizanhoops@proton.me</p>
           
           <p style="font-size: 16px; font-weight: bold;">We look forward to having you in our program! 🏀</p>
         </div>
         
         <div style="background: #e5e7eb; padding: 15px; text-align: center; font-size: 14px; color: #555; border-radius: 0 0 5px 5px;">
-          <p style="margin: 0;">Bothell Select Basketball<br>
-          bothellselect@proton.me</p>
+          <p style="margin: 0;">Partizan Basketball<br>
+          partizanhoops@proton.me</p>
         </div>
       </div>
     `;
@@ -1471,7 +1471,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .header {
-            background: #506ee4;
+            background: #594230;
             color: white;
             padding: 20px;
             text-align: center;
@@ -1512,7 +1512,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
           .button {
             display: inline-block;
             padding: 10px 20px;
-            background: #506ee4;
+            background: #594230;
             color: white;
             text-decoration: none;
             border-radius: 5px;
@@ -1524,11 +1524,11 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
         
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9fafb; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball" style="max-width: 200px; height: auto;" 
-               onerror="this.onerror=null; this.src='https://bothellselect.com/assets/img/logo.png';" />
+          <img src="${R2_LOGO_URL}" alt="Partizan Basketball" style="max-width: 200px; height: auto;" 
+               onerror="this.onerror=null; this.src='https://partizanhoops.com/assets/img/logo.png';" />
         </div>
         
-        <div style="background: #506ee4; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+        <div style="background: #594230; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
           <h1 style="margin: 0;">${formTitle}</h1>
           <span style="margin: 10px 0 0; opacity: 0.9;">Thank you for your purchase</span>
         </div>
@@ -1575,7 +1575,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
             <h3 style="margin-top: 0;">Need Help?</h3>
             <p style="margin: 8px 0;">If you have any questions about your purchase, please contact us at:</p>
             <p style="margin: 8px 0;">
-              <strong>Email:</strong> bothellselect@proton.me<br>
+              <strong>Email:</strong> partizanhoops@proton.me<br>
               <strong>Reference:</strong> ${transactionId || submissionId}
             </p>
           </div>
@@ -1592,7 +1592,7 @@ async function sendFormPaymentReceiptEmail(formData, submissionData) {
 
     // Send the email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Bothell Select <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: userEmail,
       subject: `Payment Receipt - ${formTitle}`,
       html: emailHtml,
@@ -1673,7 +1673,7 @@ async function sendFormSubmissionConfirmationEmail(formData, submissionData) {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .header {
-            background: #506ee4;
+            background: #594230;
             color: white;
             padding: 20px;
             text-align: center;
@@ -1751,10 +1751,10 @@ async function sendFormSubmissionConfirmationEmail(formData, submissionData) {
             
             <p style="margin-top: 20px;">
               <strong>Need to make changes?</strong><br>
-              If you need to update your submission or have any questions, please contact us at info@bothellselect.com
+              If you need to update your submission or have any questions, please contact us at info@partizanhoops.com
             </p>
             
-            <p>Thank you,<br>The Bothell Select Team</p>
+            <p>Thank you,<br>The Partizan Team</p>
           </div>
         </div>
       </body>
@@ -1763,7 +1763,7 @@ async function sendFormSubmissionConfirmationEmail(formData, submissionData) {
 
     // Send the email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Bothell Select <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to: userEmail,
       subject: `Form Submission Confirmation - ${formTitle}`,
       html: emailHtml,
@@ -1837,7 +1837,7 @@ async function sendFormOwnerNotificationEmail({
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .header {
-            background: #506ee4;
+            background: #594230;
             color: white;
             padding: 20px;
             text-align: center;
@@ -1852,7 +1852,7 @@ async function sendFormOwnerNotificationEmail({
           }
           .payment-info {
             background: #f8f9fa;
-            border-left: 4px solid #506ee4;
+            border-left: 4px solid #594230;
           }
           .tournament-info {
             background: #f0f9f0;
@@ -1960,7 +1960,7 @@ async function sendFormOwnerNotificationEmail({
     `;
 
     const { data, error } = await resend.emails.send({
-      from: 'Bothell Select <info@bothellselect.com>',
+      from: 'Partizan <info@partizanhoops.com>',
       to,
       subject: `New Payment: ${formTitle} - ${formattedAmount}`,
       html: notificationHtml,
@@ -2055,8 +2055,8 @@ async function sendAcceptanceEmail({
     }
 
     const additionalInfoHtml = additionalInfo
-      ? `<div style="background:#f0f4f8;padding:15px;border-radius:5px;margin:20px 0;border-left:4px solid #506ee4;">
-           <h3 style="margin-top:0;color:#506ee4;">Additional Information</h3>
+      ? `<div style="background:#f0f4f8;padding:15px;border-radius:5px;margin:20px 0;border-left:4px solid #594230;">
+           <h3 style="margin-top:0;color:#594230;">Additional Information</h3>
            <p style="margin:0;white-space:pre-line;color:#333;">${additionalInfo}</p>
          </div>`
       : '';
@@ -2073,12 +2073,12 @@ async function sendAcceptanceEmail({
 
           <!-- Header -->
           <div style="background:#f3f4f6;padding:30px 20px;text-align:center;">
-            <img src="${R2_LOGO_URL}" alt="Bothell Select Basketball"
+            <img src="${R2_LOGO_URL}" alt="Partizan Basketball"
                  style="max-width:160px;height:auto;margin-bottom:16px;"
-                 onerror="this.onerror=null;this.src='https://bothellselect.com/assets/img/logo.png';" />
+                 onerror="this.onerror=null;this.src='https://partizanhoops.com/assets/img/logo.png';" />
             <h1 style="margin:0;color:#000;font-size:24px;">Congratulations!</h1>
             <p style="margin:8px 0 0;color:rgba(0,0,0,0.85);font-size:15px;">
-              Your child has been accepted to join the Bothell Select Family!
+              Your child has been accepted to join the Partizan Family!
             </p>
           </div>
 
@@ -2102,7 +2102,7 @@ async function sendAcceptanceEmail({
             </div>
 
             <!-- Payment options -->
-            <h3 style="color:#506ee4;font-size:16px;margin-bottom:8px;">Payment Options</h3>
+            <h3 style="color:#594230;font-size:16px;margin-bottom:8px;">Payment Options</h3>
             <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
               <tbody>${paymentRowsHtml}</tbody>
             </table>
@@ -2111,7 +2111,7 @@ async function sendAcceptanceEmail({
 
             <p style="font-size:14px;color:#555;margin-top:24px;">
               If you have any questions please reach out at
-              <a href="mailto:bothellselect@proton.me" style="color:#506ee4;">bothellselect@proton.me</a>.
+              <a href="mailto:partizanhoops@proton.me" style="color:#594230;">partizanhoops@proton.me</a>.
             </p>
 
             <p style="font-size:15px;font-weight:bold;color:#333;">We look forward to a great season ahead!</p>
@@ -2119,13 +2119,13 @@ async function sendAcceptanceEmail({
             <p style="font-size:14px;color:#555;margin-bottom:0;">
               Best regards,<br/>
               <strong>${teamName} Coaching Staff</strong><br/>
-              Bothell Select Basketball
+              Partizan Basketball
             </p>
           </div>
 
           <!-- Footer -->
           <div style="background:#f3f4f6;padding:16px 24px;text-align:center;font-size:12px;color:#6b7280;">
-            <p style="margin:0;">Bothell Select Basketball &nbsp;|&nbsp; bothellselect@proton.me</p>
+            <p style="margin:0;">Partizan Basketball &nbsp;|&nbsp; partizanhoops@proton.me</p>
           </div>
         </div>
       </body>

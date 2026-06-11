@@ -104,7 +104,7 @@ const pageLayoutSchema = new mongoose.Schema(
       defaultSectionSpacing: { type: String, default: '3rem' },
       backgroundColor: { type: String, default: '#ffffff' },
       textColor: { type: String, default: '#333333' },
-      accentColor: { type: String, default: '#506ee4' },
+      accentColor: { type: String, default: '#594230' },
       canonicalUrl: String,
       openGraphImage: String,
       headerScripts: String,

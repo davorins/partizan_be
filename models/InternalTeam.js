@@ -45,7 +45,7 @@ const internalTeamSchema = new mongoose.Schema(
     tryoutSeason: {
       type: String,
       required: true,
-      default: 'Bothell Select AAU Tryout',
+      default: 'Partizan AAU Tryout',
     },
     tryoutYear: {
       type: Number,

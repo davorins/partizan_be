@@ -14,7 +14,7 @@ const cleanTemplateContent = (html) => {
   const isCompleteEmail =
     content.includes('<!DOCTYPE') ||
     content.includes('email-body') ||
-    content.includes('Bothell Select Logo');
+    content.includes('Partizan Logo');
 
   if (!isCompleteEmail) {
     // It's just body content, return as-is
@@ -45,7 +45,7 @@ const cleanTemplateContent = (html) => {
     '',
   );
   content = content.replace(
-    /<div[^>]*>\s*<img[^>]*alt="Bothell Select Logo"[^>]*>\s*<\/div>/i,
+    /<div[^>]*>\s*<img[^>]*alt="Partizan Logo"[^>]*>\s*<\/div>/i,
     '',
   );
 
@@ -65,7 +65,7 @@ const cleanTemplateContent = (html) => {
     /<a[^>]*href="[^"]*website[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
     '',
   );
-  content = content.replace(/<p[^>]*>&copy;[^<]*Bothell Select[^<]*<\/p>/i, '');
+  content = content.replace(/<p[^>]*>&copy;[^<]*Partizan[^<]*<\/p>/i, '');
 
   return content.trim();
 };
@@ -75,7 +75,7 @@ async function migrateTemplates() {
     const mongoUri =
       process.env.MONGODB_URI ||
       process.env.MONGO_URI ||
-      'mongodb://localhost:27017/bothell-select';
+      'mongodb://localhost:27017/partizan';
 
     console.log(`🔗 Connecting to MongoDB...`);
 

@@ -149,8 +149,8 @@ const formSchema = new mongoose.Schema(
       storeSubmissions: { type: Boolean, default: true },
       captcha: { type: Boolean, default: false },
       submitButtonStyle: {
-        color: { type: String, default: '#506ee4' },
-        backgroundColor: { type: String, default: '#506ee4' },
+        color: { type: String, default: '#594230' },
+        backgroundColor: { type: String, default: '#594230' },
         textColor: { type: String, default: '#ffffff' },
       },
       paymentSettings: {

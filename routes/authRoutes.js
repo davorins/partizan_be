@@ -402,18 +402,18 @@ router.post(
         const welcomeEmailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 200px;">
+              <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
             </div>
             
             <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
-              <h1 style="color: #333; text-align: center;">Welcome to Bothell Select Basketball!</h1>
+              <h1 style="color: #333; text-align: center;">Welcome to Partizan Basketball!</h1>
               
               <div style="margin: 30px 0;">
                 <p>Dear <strong>${parent.fullName}</strong>,</p>
                 
-                <p>Thank you for creating an account with Bothell Select Basketball! We're excited to have you join our community.</p>
+                <p>Thank you for creating an account with Partizan Basketball! We're excited to have you join our community.</p>
                 
-                <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #506ee4;">
+                <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #594230;">
                   <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">🎉 Account Created Successfully</h3>
                   <p><strong>Email:</strong> ${parent.email}</p>
                   <p><strong>Account Type:</strong> ${parent.isCoach ? 'Coach Account' : 'Parent/Guardian Account'}</p>
@@ -430,8 +430,8 @@ router.post(
                 </ul>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard" 
-                     style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+                  <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard" 
+                     style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                     Go to Your Dashboard
                   </a>
                 </div>
@@ -443,24 +443,24 @@ router.post(
                   </p>
                 </div>
                 
-                <p>If you have any questions or need assistance, please contact us at <a href="mailto:bothellselect@proton.me">bothellselect@proton.me</a></p>
+                <p>If you have any questions or need assistance, please contact us at <a href="mailto:partizanhoops@proton.me">partizanhoops@proton.me</a></p>
                 
                 <p style="text-align: center; margin-top: 30px;">
-                  <strong>Welcome to the Bothell Select family! 🏀</strong>
+                  <strong>Welcome to the Partizan family! 🏀</strong>
                 </p>
               </div>
             </div>
             
             <div style="text-align: center; margin-top: 30px; color: #666; font-size: 14px;">
-              <p>Bothell Select Basketball<br>
-              bothellselect@proton.me</p>
+              <p>Partizan Basketball<br>
+              partizanhoops@proton.me</p>
             </div>
           </div>
         `;
 
         sendEmail({
           to: parent.email,
-          subject: 'Welcome to Bothell Select Basketball!',
+          subject: 'Welcome to Partizan Basketball!',
           html: welcomeEmailHtml,
         }).catch((err) => console.error('Welcome email failed:', err));
       } catch (emailError) {
@@ -2216,8 +2216,8 @@ router.get(
           imgSrc: player.avatar
             ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
             : player.gender === 'Female'
-              ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-              : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
+              ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+              : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
         };
       });
 
@@ -2955,7 +2955,7 @@ router.post('/contact', async (req, res) => {
 
   try {
     await sendEmail({
-      to: 'bothellselect@proton.me',
+      to: 'partizanhoops@proton.me',
       subject: subject || 'New Inquiry from Contact Form',
       html,
     });
@@ -3006,8 +3006,8 @@ router.put('/parent/:id/avatar', authenticate, async (req, res) => {
     }
 
     // If it has the double domain issue, extract just the R2 part
-    if (cleanUrl.includes('bothell-select.onrender.comhttps://')) {
-      cleanUrl = cleanUrl.split('bothell-select.onrender.com')[1];
+    if (cleanUrl.includes('partizan-be.onrender.comhttps://')) {
+      cleanUrl = cleanUrl.split('partizan-be.onrender.com')[1];
     }
 
     console.log('🧹 Cleaned URL:', cleanUrl);
@@ -3161,8 +3161,8 @@ router.delete('/player/:id/avatar', authenticate, async (req, res) => {
     // Set to default avatar based on gender
     const defaultAvatar =
       player.gender === 'Female'
-        ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-        : 'https://bothell-select.onrender.com/uploads/avatars/boy.png';
+        ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+        : 'https://partizan-be.onrender.com/uploads/avatars/boy.png';
 
     player.avatar = defaultAvatar;
     await player.save();
@@ -5510,7 +5510,7 @@ router.post(
       await parent.save();
 
       // Send verification email
-      const verificationLink = `${process.env.FRONTEND_URL || 'https://bothellselect.com'}/verify-email?token=${verificationToken}`;
+      const verificationLink = `${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/verify-email?token=${verificationToken}`;
 
       const emailHtml = `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px;">
@@ -5521,7 +5521,7 @@ router.post(
       
       <p>Hello <strong>${parent.fullName}</strong>,</p>
       
-      <p>Thank you for starting your registration with Bothell Select Basketball. Please verify your email address to complete your account setup.</p>
+      <p>Thank you for starting your registration with Partizan Basketball. Please verify your email address to complete your account setup.</p>
       
       <!-- Primary Verification Button -->
       <div style="text-align: center; margin: 30px 0;">
@@ -5554,7 +5554,7 @@ router.post(
 </div>
         
         <p style="margin: 12px 0 0 0; color: #6c757d; font-size: 13px;">
-          Go to: <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/verify-email" style="color: rgba(0, 0, 0, .7);">${process.env.FRONTEND_URL || 'https://bothellselect.com'}/verify-email</a> and paste this token.
+          Go to: <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/verify-email" style="color: rgba(0, 0, 0, .7);">${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/verify-email</a> and paste this token.
         </p>
       </div>
       
@@ -5563,7 +5563,7 @@ router.post(
         <p style="margin-bottom: 8px; color: #6c757d; font-size: 14px;">
           Or copy and paste this full verification link in your browser:
         </p>
-        <div style="background: #f8f9fa; padding: 12px; border-radius: 4px; border-left: 4px solid #506ee4;">
+        <div style="background: #f8f9fa; padding: 12px; border-radius: 4px; border-left: 4px solid #594230;">
           <a href="${verificationLink}" 
              style="color: rgba(0, 0, 0, .7); text-decoration: none; word-break: break-all; font-size: 13px;">
             ${verificationLink}
@@ -5581,7 +5581,7 @@ router.post(
       <!-- Security Notice -->
       <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 25px;">
         <p style="color: #6c757d; font-size: 12px; margin: 0;">
-          If you didn't start a registration with Bothell Select Basketball, please ignore this email.
+          If you didn't start a registration with Partizan Basketball, please ignore this email.
         </p>
       </div>
     </div>
@@ -5589,7 +5589,7 @@ router.post(
     <!-- Footer -->
     <div style="text-align: center; margin-top: 20px;">
       <p style="color: #6c757d; font-size: 12px; margin: 0;">
-        Bothell Select Basketball<br>
+        Partizan Basketball<br>
         © ${new Date().getFullYear()} All rights reserved
       </p>
     </div>
@@ -5598,7 +5598,7 @@ router.post(
 
       await sendEmail({
         to: parent.email,
-        subject: 'Verify Your Email - Bothell Select Basketball',
+        subject: 'Verify Your Email - Partizan Basketball',
         html: emailHtml,
       });
 
@@ -5881,7 +5881,7 @@ const sendVerificationEmailWithToken = async (email, token) => {
     
     <p>Hello,</p>
     
-    <p>Thank you for starting your registration with Bothell Select Basketball. Please verify your email address to continue with your registration.</p>
+    <p>Thank you for starting your registration with Partizan Basketball. Please verify your email address to continue with your registration.</p>
     
     <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:20px;margin:25px 0">
       <h3 style="color:#495057;margin-top:0;font-size:16px">📋 Verification Token</h3>
@@ -5920,14 +5920,14 @@ const sendVerificationEmailWithToken = async (email, token) => {
     
     <div style="border-top:1px solid #eee;padding-top:20px;margin-top:25px">
       <p style="color:#6c757d;font-size:12px;margin:0">
-        If you didn't start a registration with Bothell Select Basketball, please ignore this email.
+        If you didn't start a registration with Partizan Basketball, please ignore this email.
       </p>
     </div>
   </div>
   
   <div style="text-align:center;margin-top:20px">
     <p style="color:#6c757d;font-size:12px;margin:0">
-      Bothell Select Basketball<br>
+      Partizan Basketball<br>
       © ${new Date().getFullYear()} All rights reserved
     </p>
   </div>
@@ -5935,7 +5935,7 @@ const sendVerificationEmailWithToken = async (email, token) => {
 
     await sendEmail({
       to: email,
-      subject: 'Verify Your Email - Bothell Select Basketball',
+      subject: 'Verify Your Email - Partizan Basketball',
       html: emailHtml,
     });
 
@@ -6029,8 +6029,8 @@ router.get('/players/my-players', authenticate, async (req, res) => {
       imgSrc: player.avatar
         ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
         : player.gender === 'Female'
-          ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-          : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
+          ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+          : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
     }));
 
     res.json(playersWithAvatars);
@@ -7022,8 +7022,8 @@ router.get(
           imgSrc: player.avatar
             ? `${player.avatar}${player.avatar.includes('?') ? '&' : '?'}ts=${Date.now()}`
             : player.gender === 'Female'
-              ? 'https://bothell-select.onrender.com/uploads/avatars/girl.png'
-              : 'https://bothell-select.onrender.com/uploads/avatars/boy.png',
+              ? 'https://partizan-be.onrender.com/uploads/avatars/girl.png'
+              : 'https://partizan-be.onrender.com/uploads/avatars/boy.png',
           formattedDob: player.dob
             ? new Date(player.dob).toLocaleDateString()
             : null,
@@ -7196,19 +7196,19 @@ router.post('/players/link-to-parent', authenticate, async (req, res) => {
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; }
       .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #506ee4; }
+      .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #594230; }
       .logo { max-width: 200px; margin-bottom: 15px; }
       .content { padding: 30px 20px; background: #f9f9f9; border-radius: 8px; margin: 20px 0; }
       .player-card { background: white; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #28a745; }
-      .button { display: inline-block; padding: 12px 30px; background-color: #506ee4; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+      .button { display: inline-block; padding: 12px 30px; background-color: #594230; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
       .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; border-top: 1px solid #eee; }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="header">
-        <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" class="logo">
-        <h2 style="color: #506ee4;">Player Linked to Another Account</h2>
+        <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" class="logo">
+        <h2 style="color: #594230;">Player Linked to Another Account</h2>
       </div>
       <div class="content">
         <p>Hello <strong>${originalParent.fullName}</strong>,</p>
@@ -7222,15 +7222,15 @@ router.post('/players/link-to-parent', authenticate, async (req, res) => {
         <p>Both accounts can now manage ${player.fullName}'s registrations independently. Each parent keeps their own login credentials.</p>
         <p>If you did not authorize this action or have concerns, please contact us immediately.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard" class="button">
+          <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard" class="button">
             Go to Dashboard
           </a>
         </div>
       </div>
       <div class="footer">
-        <p>Bothell Select Basketball<br>
-        <a href="mailto:bothellselect@proton.me">bothellselect@proton.me</a></p>
-        <p>© ${new Date().getFullYear()} Bothell Select Basketball. All rights reserved.</p>
+        <p>Partizan Basketball<br>
+        <a href="mailto:partizanhoops@proton.me">partizanhoops@proton.me</a></p>
+        <p>© ${new Date().getFullYear()} Partizan Basketball. All rights reserved.</p>
       </div>
     </div>
   </body>
@@ -7239,7 +7239,7 @@ router.post('/players/link-to-parent', authenticate, async (req, res) => {
 
       await sendEmail({
         to: originalParent.email,
-        subject: `Player "${player.fullName}" linked to another account - Bothell Select`,
+        subject: `Player "${player.fullName}" linked to another account - Partizan`,
         html: emailHtml,
       });
 
@@ -7367,7 +7367,7 @@ router.post(
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; }
       .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #506ee4; }
+      .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #594230; }
       .logo { max-width: 200px; margin-bottom: 15px; }
       .content { padding: 30px 20px; background: #f9f9f9; border-radius: 8px; margin: 20px 0; }
       .player-card { background: white; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #28a745; }
@@ -7377,8 +7377,8 @@ router.post(
   <body>
     <div class="container">
       <div class="header">
-        <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" class="logo">
-        <h2 style="color: #506ee4;">Players Linked to Another Account</h2>
+        <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" class="logo">
+        <h2 style="color: #594230;">Players Linked to Another Account</h2>
       </div>
       <div class="content">
         <p>Hello <strong>${originalParentObj.fullName}</strong>,</p>
@@ -7391,8 +7391,8 @@ router.post(
         <p>If you did not authorize this action or have concerns, please contact us immediately.</p>
       </div>
       <div class="footer">
-        <p>Bothell Select Basketball<br><a href="mailto:bothellselect@proton.me">bothellselect@proton.me</a></p>
-        <p>© ${new Date().getFullYear()} Bothell Select Basketball. All rights reserved.</p>
+        <p>Partizan Basketball<br><a href="mailto:partizanhoops@proton.me">partizanhoops@proton.me</a></p>
+        <p>© ${new Date().getFullYear()} Partizan Basketball. All rights reserved.</p>
       </div>
     </div>
   </body>
@@ -7401,7 +7401,7 @@ router.post(
 
             await sendEmail({
               to: originalParentEmail,
-              subject: `${linkedPlayers.length} player(s) linked to another account - Bothell Select`,
+              subject: `${linkedPlayers.length} player(s) linked to another account - Partizan`,
               html: emailHtml,
             });
           }
@@ -7477,7 +7477,7 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
 
     // Use your frontend URL
     const FRONTEND_URL =
-      process.env.FRONTEND_URL || 'https://bothellselect.com';
+      process.env.FRONTEND_URL || 'https://partizanhoops.com';
     const acceptLink = `${FRONTEND_URL}/merge-account?token=${token}`;
 
     // Beautiful email HTML that matches your original design
@@ -7509,7 +7509,7 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       }
       .email-header {
-        background: linear-gradient(135deg, #506ee4 0%, #3a56c4 100%);
+        background: linear-gradient(135deg, #594230 0%, #3a56c4 100%);
         padding: 30px;
         text-align: center;
         color: white;
@@ -7529,7 +7529,7 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
       }
       .player-card {
         background: #f8f9fa;
-        border-left: 4px solid #506ee4;
+        border-left: 4px solid #594230;
         padding: 15px;
         border-radius: 8px;
         margin: 20px 0;
@@ -7548,7 +7548,7 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
       .button {
         display: inline-block;
         padding: 14px 32px;
-        background-color: #506ee4;
+        background-color: #594230;
         color: white !important;
         text-decoration: none;
         border-radius: 8px;
@@ -7589,7 +7589,7 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
     <div class="email-container">
       <div class="email-card">
         <div class="email-header">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" class="logo-header">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" class="logo-header">
           <h1>🔄 Account Merge Request</h1>
           <p>Combine accounts for easier management</p>
         </div>
@@ -7640,9 +7640,9 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
           </p>
         </div>
         <div class="footer">
-          <p><strong>Bothell Select Basketball</strong><br>
-          <a href="mailto:bothellselect@proton.me" style="color: #506ee4; text-decoration: none;">bothellselect@proton.me</a></p>
-          <p>© ${new Date().getFullYear()} Bothell Select Basketball. All rights reserved.</p>
+          <p><strong>Partizan Basketball</strong><br>
+          <a href="mailto:partizanhoops@proton.me" style="color: #594230; text-decoration: none;">partizanhoops@proton.me</a></p>
+          <p>© ${new Date().getFullYear()} Partizan Basketball. All rights reserved.</p>
           <p style="font-size: 11px;">This is an automated message, please do not reply to this email.</p>
         </div>
       </div>
@@ -7652,7 +7652,7 @@ router.post('/parents/request-merge', authenticate, async (req, res) => {
 
     await sendEmail({
       to: existingParent.email,
-      subject: `Account merge request from ${newParent.fullName} — Bothell Select Basketball`,
+      subject: `Account merge request from ${newParent.fullName} — Partizan Basketball`,
       html: emailHtml,
     });
 
@@ -7768,11 +7768,11 @@ router.post('/parents/approve-merge', async (req, res) => {
       // Email to the new user (their account was merged)
       await sendEmail({
         to: accountToMerge.email,
-        subject: 'Account merge complete — Bothell Select Basketball',
+        subject: 'Account merge complete — Partizan Basketball',
         html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; margin-bottom: 20px;">
-        <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 200px;">
+        <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
       </div>
       <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
         <h2 style="color: #28a745; text-align: center;">✓ Account Merge Complete</h2>
@@ -7787,8 +7787,8 @@ router.post('/parents/approve-merge', async (req, res) => {
           </ul>
         </div>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/login"
-             style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+          <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/login"
+             style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
             Log In Now
           </a>
         </div>
@@ -7799,7 +7799,7 @@ router.post('/parents/approve-merge', async (req, res) => {
         </p>
       </div>
       <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
-        <p>Bothell Select Basketball — bothellselect@proton.me</p>
+        <p>Partizan Basketball — partizanhoops@proton.me</p>
       </div>
     </div>
   `,
@@ -7808,17 +7808,17 @@ router.post('/parents/approve-merge', async (req, res) => {
       // Email to the original account owner
       await sendEmail({
         to: originalAccount.email,
-        subject: 'Account merge approved — Bothell Select Basketball',
+        subject: 'Account merge approved — Partizan Basketball',
         html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; margin-bottom: 20px;">
-        <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 200px;">
+        <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 200px;">
       </div>
       <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
         <h2 style="color: #28a745; text-align: center;">✓ Merge Request Approved</h2>
         <p>Hello <strong>${originalAccount.fullName}</strong>,</p>
         <p>You have successfully approved the merge request from <strong>${accountToMerge.fullName}</strong>.</p>
-        <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #506ee4; margin: 20px 0;">
+        <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #594230; margin: 20px 0;">
           <h3 style="margin-top: 0;">Summary:</h3>
           <ul>
             <li><strong>${accountToMerge.fullName}</strong> (${accountToMerge.email}) has been added as a guardian on your account</li>
@@ -7828,14 +7828,14 @@ router.post('/parents/approve-merge', async (req, res) => {
           </ul>
         </div>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard"
-             style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+          <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard"
+             style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
             Go to Dashboard
           </a>
         </div>
       </div>
       <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
-        <p>Bothell Select Basketball — bothellselect@proton.me</p>
+        <p>Partizan Basketball — partizanhoops@proton.me</p>
       </div>
     </div>
   `,
@@ -7893,16 +7893,16 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; text-align: center; padding: 50px; margin: 0; background: #f5f5f5; }
             .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
             .error { color: #dc3545; }
-            .button { display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #506ee4; color: white; text-decoration: none; border-radius: 6px; }
+            .button { display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #594230; color: white; text-decoration: none; border-radius: 6px; }
           </style>
         </head>
         <body>
          <div class="container">
-  <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" class="logo" style="max-width: 180px; margin-bottom: 20px;">
+  <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" class="logo" style="max-width: 180px; margin-bottom: 20px;">
   <h1 class="error">❌ Merge Request Expired or Invalid</h1>
             <p>This merge request may have expired (48 hour limit) or already been processed.</p>
             <p>Please contact support if you need assistance.</p>
-            <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}" class="button">Return to Home</a>
+            <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}" class="button">Return to Home</a>
           </div>
         </body>
         </html>
@@ -7933,15 +7933,15 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; text-align: center; padding: 50px; margin: 0; background: #f5f5f5; }
             .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
             .error { color: #dc3545; }
-            .button { display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #506ee4; color: white; text-decoration: none; border-radius: 6px; }
+            .button { display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #594230; color: white; text-decoration: none; border-radius: 6px; }
           </style>
         </head>
         <body>
          <div class="container">
-  <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 180px; margin-bottom: 20px;">
+  <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 180px; margin-bottom: 20px;">
   <h1 class="error">⚠️ Error Processing Merge Request</h1>
             <p>Account information could not be found.</p>
-            <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}" class="button">Return to Home</a>
+            <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}" class="button">Return to Home</a>
           </div>
         </body>
         </html>
@@ -8041,7 +8041,7 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
     try {
       await sendEmail({
         to: newUserAccount.email,
-        subject: 'Account merge complete — Bothell Select Basketball',
+        subject: 'Account merge complete — Partizan Basketball',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
@@ -8063,14 +8063,14 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
                 <p style="margin: 4px 0 0 0;">Password: <em>your existing password (unchanged)</em></p>
               </div>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/login"
-                   style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+                <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/login"
+                   style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                   Log In Now
                 </a>
               </div>
             </div>
             <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
-              <p>Bothell Select Basketball — bothellselect@proton.me</p>
+              <p>Partizan Basketball — partizanhoops@proton.me</p>
             </div>
           </div>
         `,
@@ -8078,14 +8078,14 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
 
       await sendEmail({
         to: originalAccount.email,
-        subject: 'Account merge approved — Bothell Select Basketball',
+        subject: 'Account merge approved — Partizan Basketball',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
               <h2 style="color: #28a745; text-align: center;">✓ Merge Request Approved</h2>
               <p>Hello <strong>${originalAccount.fullName}</strong>,</p>
               <p>You have successfully approved the merge request from <strong>${newUserAccount.fullName}</strong>.</p>
-              <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #506ee4; margin: 20px 0;">
+              <div style="background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #594230; margin: 20px 0;">
                 <h3 style="margin-top: 0;">Summary:</h3>
                 <ul>
                   <li><strong>${newUserAccount.fullName}</strong> (${newUserAccount.email}) has been added as a guardian on your account</li>
@@ -8095,14 +8095,14 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
                 </ul>
               </div>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/dashboard"
-                   style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+                <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/dashboard"
+                   style="background: #594230; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                   Go to Dashboard
                 </a>
               </div>
             </div>
             <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
-              <p>Bothell Select Basketball — bothellselect@proton.me</p>
+              <p>Partizan Basketball — partizanhoops@proton.me</p>
             </div>
           </div>
         `,
@@ -8157,7 +8157,7 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
         display: inline-block;
         margin-top: 20px;
         padding: 12px 30px;
-        background-color: #506ee4;
+        background-color: #594230;
         color: white;
         text-decoration: none;
         border-radius: 6px;
@@ -8168,7 +8168,7 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
   </head>
   <body>
     <div class="container">
-      <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" class="logo">
+      <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" class="logo">
       <div class="success-icon">✓</div>
       <h1>Merge Successful!</h1>
       <p>The accounts have been merged.</p>
@@ -8178,7 +8178,7 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
         the combined account.<br><br>
         All players from both accounts are now combined.
       </div>
-      <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}/login" class="button">
+      <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/login" class="button">
         Log In to Your Account
       </a>
     </div>
@@ -8199,15 +8199,15 @@ router.get('/parents/accept-merge/:token', async (req, res) => {
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; text-align: center; padding: 50px; margin: 0; background: #f5f5f5; }
           .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
           .error { color: #dc3545; }
-          .button { display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #506ee4; color: white; text-decoration: none; border-radius: 6px; }
+          .button { display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #594230; color: white; text-decoration: none; border-radius: 6px; }
         </style>
       </head>
       <body>
         <div class="container">
-        <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" style="max-width: 180px; margin-bottom: 20px;">
+        <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" style="max-width: 180px; margin-bottom: 20px;">
           <h1 class="error">❌ Error Processing Merge Request</h1>
           <p>${error.message}</p>
-          <a href="${process.env.FRONTEND_URL || 'https://bothellselect.com'}" class="button">Return to Home</a>
+          <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}" class="button">Return to Home</a>
         </div>
       </body>
       </html>
@@ -8265,15 +8265,15 @@ router.post('/parents/request-merge-bulk', authenticate, async (req, res) => {
 
     // Use frontend URL
     const FRONTEND_URL =
-      process.env.FRONTEND_URL || 'https://bothellselect.com';
+      process.env.FRONTEND_URL || 'https://partizanhoops.com';
     const acceptLink = `${FRONTEND_URL}/merge-account?token=${token}`;
 
     // Build players list HTML
     const playersListHtml = players
       .map(
         (player, idx) => `
-      <div style="display: flex; align-items: center; gap: 12px; padding: 10px; background: white; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #506ee4;">
-        <div style="width: 40px; height: 40px; background: #e8ecf7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #506ee4;">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px; background: white; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #594230;">
+        <div style="width: 40px; height: 40px; background: #e8ecf7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #594230;">
           ${player.fullName
             .split(' ')
             .map((p) => p[0])
@@ -8319,7 +8319,7 @@ router.post('/parents/request-merge-bulk', authenticate, async (req, res) => {
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       }
       .email-header {
-        background: linear-gradient(135deg, #506ee4 0%, #3a56c4 100%);
+        background: linear-gradient(135deg, #594230 0%, #3a56c4 100%);
         padding: 30px;
         text-align: center;
         color: white;
@@ -8359,7 +8359,7 @@ router.post('/parents/request-merge-bulk', authenticate, async (req, res) => {
       .button {
         display: inline-block;
         padding: 14px 32px;
-        background-color: #506ee4;
+        background-color: #594230;
         color: white !important;
         text-decoration: none;
         border-radius: 8px;
@@ -8395,7 +8395,7 @@ router.post('/parents/request-merge-bulk', authenticate, async (req, res) => {
     <div class="email-container">
       <div class="email-card">
         <div class="email-header">
-          <img src="https://bothellselect.com/assets/img/logo.png" alt="Bothell Select Basketball" class="logo-header">
+          <img src="https://partizanhoops.com/assets/img/logo.png" alt="Partizan Basketball" class="logo-header">
           <h1>🔄 Bulk Account Merge Request</h1>
           <p>Combine multiple players at once</p>
         </div>
@@ -8435,9 +8435,9 @@ router.post('/parents/request-merge-bulk', authenticate, async (req, res) => {
           </p>
         </div>
         <div class="footer">
-          <p><strong>Bothell Select Basketball</strong><br>
-          <a href="mailto:bothellselect@proton.me" style="color: #506ee4; text-decoration: none;">bothellselect@proton.me</a></p>
-          <p>© ${new Date().getFullYear()} Bothell Select Basketball. All rights reserved.</p>
+          <p><strong>Partizan Basketball</strong><br>
+          <a href="mailto:partizanhoops@proton.me" style="color: #594230; text-decoration: none;">partizanhoops@proton.me</a></p>
+          <p>© ${new Date().getFullYear()} Partizan Basketball. All rights reserved.</p>
           <p style="font-size: 11px;">This is an automated message, please do not reply to this email.</p>
         </div>
       </div>
@@ -8447,7 +8447,7 @@ router.post('/parents/request-merge-bulk', authenticate, async (req, res) => {
 
     await sendEmail({
       to: existingParent.email,
-      subject: `Bulk account merge request from ${newParent.fullName} — ${players.length} player${players.length !== 1 ? 's' : ''} — Bothell Select Basketball`,
+      subject: `Bulk account merge request from ${newParent.fullName} — ${players.length} player${players.length !== 1 ? 's' : ''} — Partizan Basketball`,
       html: emailHtml,
     });
 

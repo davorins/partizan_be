@@ -644,7 +644,7 @@ router.get('/test-r2-connection', authenticate, async (req, res) => {
     const listCommand = new ListBucketsCommand({});
     const buckets = await r2Client.send(listCommand);
 
-    const testBuffer = Buffer.from('Test file from Bothell Select app');
+    const testBuffer = Buffer.from('Test file from Partizan app');
     const testKey = `test-connection-${Date.now()}.txt`;
 
     const uploadCommand = new PutObjectCommand({

@@ -6,11 +6,11 @@ async function fixIndexes() {
   try {
     console.log('Connecting to MongoDB...');
     await mongoose.connect(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/bothell-select',
+      process.env.MONGODB_URI || 'mongodb://localhost:27017/partizan',
       {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-      }
+      },
     );
 
     console.log('✅ Connected to MongoDB');
@@ -39,7 +39,7 @@ async function fixIndexes() {
       console.log(
         `${i + 1}. ${idx.name}:`,
         idx.key,
-        idx.unique ? '(unique)' : ''
+        idx.unique ? '(unique)' : '',
       );
     });
 
