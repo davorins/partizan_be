@@ -47,6 +47,7 @@ const formFieldRoutes = require('./routes/formFieldRoutes');
 const advertisementRoutes = require('./routes/advertisementRoutes');
 const subscriptionRoutes = require('./routes/subscription-routes');
 const { startScheduler } = require('./services/subscription-scheduler');
+const videoGalleryRoutes = require('./routes/videoGallery');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -153,6 +154,7 @@ app.use('/api/page-builder', pageBuilder);
 app.get('/api/health', healthCheck);
 app.use('/api/form-fields', formFieldRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/video-gallery', videoGalleryRoutes);
 
 // Backend route for fetching player data
 app.get('/api/player/:playerId', async (req, res) => {
