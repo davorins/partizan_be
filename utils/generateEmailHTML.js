@@ -37,7 +37,7 @@ function generateEmailHTML(
       ? cfg.fontFamily
       : FONT_MAP[cfg.fontFamily] || FONT_MAP.system;
 
-  const primary = cfg.primaryColor || '#506ee4';
+  const primary = cfg.primaryColor || '#000000';
   const bgColor = cfg.backgroundColor || '#f0f4ff';
   const hBg = cfg.headerBg || '#1e3a8a';
   const overlay = cfg.overlayOpacity !== undefined ? cfg.overlayOpacity : 0.55;

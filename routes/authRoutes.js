@@ -3777,7 +3777,7 @@ router.post('/notifications', authenticate, async (req, res) => {
             <div style="margin: 30px 0;">
               <p>Dear <strong>${recipient.fullName || 'Parent'}</strong>,</p>
               
-              <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #506ee4;">
+              <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #000000;">
                 <h3 style="margin-top: 0; color: rgba(0, 0, 0, .7);">📨 Message from Partizan AAU</h3>
                 <p style="font-size: 16px; line-height: 1.6; color: #333;">${message}</p>
               </div>
@@ -3796,7 +3796,7 @@ router.post('/notifications', authenticate, async (req, res) => {
               
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${process.env.FRONTEND_URL || 'https://partizanhoops.com'}/admin-dashboard" 
-                   style="background: #506ee4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+                   style="background: #000000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                   Go to Dashboard
                 </a>
               </div>
