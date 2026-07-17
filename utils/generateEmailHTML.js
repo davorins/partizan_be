@@ -3,7 +3,7 @@
 'use strict';
 
 const LOGO_FALLBACK =
-  'https://https://pub-3eb0901007e24e51b6ed1bde149cb0bb.r2.dev/logo/logo.png';
+  'https://pub-3eb0901007e24e51b6ed1bde149cb0bb.r2.dev/logo/logo.png';
 
 const FONT_MAP = {
   system:
