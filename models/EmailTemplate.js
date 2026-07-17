@@ -173,7 +173,7 @@ emailTemplateSchema.index({ includeSignature: 1 });
 const getR2PublicUrl = () => {
   return (
     process.env.R2_PUBLIC_URL ||
-    'https://pub-eab2790b2e94418f896b048a8e6658d0.r2.dev'
+    'https://https://pub-3eb0901007e24e51b6ed1bde149cb0bb.r2.dev'
   );
 };
 
