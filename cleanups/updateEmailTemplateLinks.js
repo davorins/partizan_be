@@ -48,11 +48,11 @@ async function updateEmailTemplateLinks() {
             // Check for old unsubscribe link and update
             if (
               fieldContent.includes(
-                'href="https://partizanhoops.com/unsubscribe"',
+                'href="https://partizanhoops.com//general-settings/notifications-settings"',
               )
             ) {
               fieldContent = fieldContent.replace(
-                /href="https:\/\/partizanhoops\.com\/unsubscribe"/g,
+                /href="https:\/\/partizanhoops\.com\/general-settings\/notifications-settings"/g,
                 'href="https://partizanhoops.com/general-settings/notifications-settings"',
               );
               console.log(`   ↳ Updated unsubscribe link in ${field}`);
@@ -61,10 +61,12 @@ async function updateEmailTemplateLinks() {
 
             // Check for old contact link and update
             if (
-              fieldContent.includes('href="https://partizanhoops.com/contact"')
+              fieldContent.includes(
+                'href="https://partizanhoops.com/contact-us"',
+              )
             ) {
               fieldContent = fieldContent.replace(
-                /href="https:\/\/partizanhoops\.com\/contact"/g,
+                /href="https:\/\/partizanhoops\.com\/contact-us"/g,
                 'href="https://partizanhoops.com/contact-us"',
               );
               console.log(`   ↳ Updated contact link in ${field}`);
@@ -87,11 +89,11 @@ async function updateEmailTemplateLinks() {
             // Check for links without quotes
             if (
               fieldContent.includes(
-                'href=https://partizanhoops.com/unsubscribe',
+                'href=https://partizanhoops.com/general-settings/notifications-settings',
               )
             ) {
               fieldContent = fieldContent.replace(
-                /href=https:\/\/partizanhoops\.com\/unsubscribe/g,
+                /href=https:\/\/partizanhoops\.com\/general-settings\/notifications-settings/g,
                 'href="https://partizanhoops.com/general-settings/notifications-settings"',
               );
               console.log(
@@ -104,7 +106,7 @@ async function updateEmailTemplateLinks() {
               fieldContent.includes('href=https://partizanhoops.com/contact')
             ) {
               fieldContent = fieldContent.replace(
-                /href=https:\/\/partizanhoops\.com\/contact/g,
+                /href=https:\/\/partizanhoops\.com\/contact-us/g,
                 'href="https://partizanhoops.com/contact-us"',
               );
               console.log(`   ↳ Updated contact link (no quotes) in ${field}`);
