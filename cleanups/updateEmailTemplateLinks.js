@@ -48,7 +48,7 @@ async function updateEmailTemplateLinks() {
             // Check for old unsubscribe link and update
             if (
               fieldContent.includes(
-                'href="https://partizanhoops.com//general-settings/notifications-settings"',
+                'href="https://partizanhoops.com/general-settings/notifications-settings"',
               )
             ) {
               fieldContent = fieldContent.replace(

@@ -548,8 +548,8 @@ emailTemplateSchema.methods.getCompleteEmailHTML = function () {
                 <div style="text-align: center; font-size: 13px; color: #666; padding: 30px 0 20px; margin-top: 40px; border-top: 1px solid #eaeaea;">
                   <p style="margin: 0 0 8px;"> you're part of <strong style="color: #333;">Partizan AAU</strong>.</p>
                   <p style="margin: 0;">
-                    <a href="https://partizanhoops.com/unsubscribe" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; padding-bottom: 1px;">Unsubscribe</a> • 
-                    <a href="https://partizanhoops.com/contact" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; padding-bottom: 1px;">Contact Us</a> • 
+                    <a href="https://partizanhoops.com/general-settings/notifications-settings" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; padding-bottom: 1px;">Unsubscribe</a> • 
+                    <a href="https://partizanhoops.com/contact-us" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; padding-bottom: 1px;">Contact Us</a> • 
                     <a href="https://partizanhoops.com" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; padding-bottom: 1px;">Website</a>
                   </p>
                 </div>
